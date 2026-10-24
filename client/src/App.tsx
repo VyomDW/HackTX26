@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, LayoutGrid, Link2, Loader2, Square, Undo2, Users, X } from "lucide-react";
+import { ArrowUp, Check, LayoutGrid, Link2, Loader2, Square, Undo2, X } from "lucide-react";
 import { DocKind } from "@hacktx/shared";
 import { Button } from "@/components/ui/button";
 import { DocEditor } from "@/components/DocEditor";
 import { Home } from "@/components/Home";
 import { MicButton } from "@/components/MicButton";
 import { NotesEditor } from "@/components/NotesEditor";
+import { Avatar, NameDialog, PresenceStack } from "@/components/Presence";
 import { Present, PrintDeck } from "@/components/Present";
 import { SheetEditor } from "@/components/SheetEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
+import { useIdentity } from "@/lib/identity";
 import { KINDS } from "@/lib/kinds";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
@@ -20,14 +22,39 @@ const params = new URLSearchParams(location.search);
 const roomId = params.get("room");
 
 export default function App() {
+  const { userId, name, setName, suggestedName } = useIdentity();
   if (!roomId) return <Home />;
-  return <Workspace roomId={roomId} kind={DocKind.safeParse(params.get("kind")).data} initialPrompt={params.get("q") ?? undefined} />;
+  // Nobody joins a file until they have a name, so the transcript and the AI prompt never show a raw id.
+  if (!name) return <NameDialog initial={suggestedName} onSave={setName} />;
+  return (
+    <Workspace
+      roomId={roomId}
+      kind={DocKind.safeParse(params.get("kind")).data}
+      initialPrompt={params.get("q") ?? undefined}
+      userId={userId}
+      name={name}
+      onRename={setName}
+    />
+  );
 }
 
 /** One open file: shared header and AI panel around the editor for its kind. */
-function Workspace({ roomId, kind, initialPrompt }: { roomId: string; kind?: DocKind; initialPrompt?: string }) {
-  const userId = useMemo(() => `u-${Math.random().toString(36).slice(2, 8)}`, []);
-  const name = useMemo(() => `Guest ${userId.slice(-3).toUpperCase()}`, [userId]);
+function Workspace({
+  roomId,
+  kind,
+  initialPrompt,
+  userId,
+  name,
+  onRename,
+}: {
+  roomId: string;
+  kind?: DocKind;
+  initialPrompt?: string;
+  userId: string;
+  name: string;
+  onRename: (name: string) => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
   const { send, connected } = useRoomSocket(roomId, userId, name, kind);
   const doc = useDoc((s) => s.doc);
   const loaded = useDoc((s) => s.loaded);
@@ -55,7 +82,7 @@ function Workspace({ roomId, kind, initialPrompt }: { roomId: string; kind?: Doc
   return (
     <>
       <div className={cn("flex h-dvh flex-col bg-slate-100 text-slate-900", doc.kind === "slides" ? "print:hidden" : "print:block print:h-auto")}>
-        <Header roomId={roomId} connected={connected} onStop={() => send({ type: "stop" })} />
+        <Header roomId={roomId} userId={userId} connected={connected} onStop={() => send({ type: "stop" })} onRename={() => setRenaming(true)} />
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {!loaded ? (
@@ -76,14 +103,35 @@ function Workspace({ roomId, kind, initialPrompt }: { roomId: string; kind?: Doc
         </div>
         <ErrorToast />
       </div>
+      {renaming && (
+        <NameDialog
+          initial={name}
+          onCancel={() => setRenaming(false)}
+          onSave={(next) => {
+            setRenaming(false);
+            onRename(next);
+          }}
+        />
+      )}
       {doc.kind === "slides" && presenting && <Present />}
       {doc.kind === "slides" && <PrintDeck />}
     </>
   );
 }
 
-function Header({ roomId, connected, onStop }: { roomId: string; connected: boolean; onStop: () => void }) {
-  const users = useDoc((s) => s.users);
+function Header({
+  roomId,
+  userId,
+  connected,
+  onStop,
+  onRename,
+}: {
+  roomId: string;
+  userId: string;
+  connected: boolean;
+  onStop: () => void;
+  onRename: () => void;
+}) {
   const aiStatus = useDoc((s) => s.aiStatus);
   const doc = useDoc((s) => s.doc);
   const loaded = useDoc((s) => s.loaded);
@@ -132,9 +180,7 @@ function Header({ roomId, connected, onStop }: { roomId: string; connected: bool
             <Square className="size-3 fill-current" /> Stop
           </Button>
         )}
-        <span className="hidden items-center gap-1 text-xs text-slate-500 sm:flex" title={users.map((u) => u.name ?? u.userId).join(", ")}>
-          <Users className="size-3.5" /> {users.length}
-        </span>
+        <PresenceStack userId={userId} onRename={onRename} />
         <Button
           size="sm"
           variant="ghost"
@@ -205,7 +251,10 @@ function Transcript({
           const working = busy && i === turns.length - 1;
           return (
             <div key={turn.turnId} className="space-y-1.5">
-              <div className="text-xs text-slate-400">{turn.name ?? "Someone"}</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Avatar userId={turn.userId} name={turn.name} className="size-4 text-[8px] ring-0" />
+                {turn.userId === userId ? "You" : (turn.name ?? "Someone")}
+              </div>
               <div className={cn("rounded-2xl rounded-tl-sm bg-slate-100 px-3 py-2 text-sm", undone && "text-slate-400 line-through")}>{turn.text}</div>
               <div className="flex items-center justify-between pl-1 text-xs">
                 <span className={cn("flex items-center gap-1.5", working ? "text-violet-600" : "text-slate-500")}>
