@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Crosshair, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isBusy, turnSummary, useDeck } from "@/store/deck";
+import { isBusy, selectDeck, turnSummary, useDeck } from "@/store/deck";
 import { useEditor } from "@/store/editor";
 import { AiAvatar } from "./Activity";
 import { Avatar } from "./Presence";
@@ -20,7 +20,7 @@ export function StageOverlays({ userId }: { userId: string }) {
 }
 
 function CameraChip() {
-  const slides = useDeck((s) => s.deck.slides);
+  const slides = useDeck((s) => selectDeck(s).slides);
   const focus = useDeck((s) => s.focus);
   const busy = useDeck(isBusy);
   const { slideId, follow } = useEditor();

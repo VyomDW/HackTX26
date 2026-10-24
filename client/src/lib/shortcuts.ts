@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useDeck } from "@/store/deck";
+import { useDeck, selectDeck } from "@/store/deck";
 import { currentSlide, useEditor } from "@/store/editor";
 import * as act from "./actions";
 
@@ -41,7 +41,7 @@ export function useShortcuts() {
       }
 
       // Nothing selected: arrows move between slides.
-      const { slides } = useDeck.getState().deck;
+      const { slides } = selectDeck(useDeck.getState());
       const i = slides.findIndex((s) => s.id === currentSlide()?.id);
       if (e.key === "ArrowDown" || e.key === "ArrowRight") return run(() => slides[i + 1] && ed.setSlide(slides[i + 1]!.id));
       if (e.key === "ArrowUp" || e.key === "ArrowLeft") return run(() => slides[i - 1] && ed.setSlide(slides[i - 1]!.id));

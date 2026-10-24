@@ -1,5 +1,24 @@
 import { z } from "zod";
 import { Box, Element, Layout, ShapeKind, Slide, Style, StylePatch } from "./deck";
+import type { DocKind } from "./document";
+import { AddNote, DeleteNote, RestoreNote, SetNote } from "./notes";
+import {
+  AddChart,
+  DeleteChart,
+  DeleteCols,
+  DeleteRows,
+  InsertCols,
+  InsertRows,
+  RestoreCells,
+  RestoreChart,
+  SetCells,
+  SetCellStyle,
+  SetColWidth,
+  SetFrozen,
+  SetGrid,
+  SortRange,
+} from "./sheet";
+import { DeleteBlock, InsertBlock, MoveBlock, RestoreBlock, SetBlock } from "./textdoc";
 
 /**
  * Operations the model may emit, one JSON object per line. Users send the same ops from the editor.
@@ -107,8 +126,11 @@ export const Focus = z.object({
   elementId: z.string().optional(),
 });
 
-/** What Muse Spark is allowed to emit. */
-export const ModelOp = z.discriminatedUnion("type", [
+/** Renames the file; valid for every kind. */
+export const SetTitle = z.object({ type: z.literal("set_title"), title: z.string().max(200) });
+
+/** What Muse Spark may emit while editing a slide deck. */
+export const SlidesModelOp = z.discriminatedUnion("type", [
   AddSlide,
   SetText,
   AddImage,
@@ -124,6 +146,54 @@ export const ModelOp = z.discriminatedUnion("type", [
   DeleteSlide,
   ReorderSlide,
   Focus,
+  SetTitle,
+]);
+export const DocModelOp = z.discriminatedUnion("type", [InsertBlock, SetBlock, DeleteBlock, MoveBlock, SetTitle]);
+export const SheetModelOp = z.discriminatedUnion("type", [
+  SetCells,
+  SetCellStyle,
+  InsertRows,
+  DeleteRows,
+  InsertCols,
+  DeleteCols,
+  SetColWidth,
+  SortRange,
+  AddChart,
+  DeleteChart,
+  SetFrozen,
+  SetTitle,
+]);
+export const NotesModelOp = z.discriminatedUnion("type", [AddNote, SetNote, DeleteNote, SetTitle]);
+
+/** The op vocabulary the model gets for each kind of file. */
+export const MODEL_OPS: Record<DocKind, z.ZodType<ModelOp>> = {
+  slides: SlidesModelOp,
+  doc: DocModelOp,
+  sheet: SheetModelOp,
+  notes: NotesModelOp,
+};
+
+/** Anything the model may emit, across all kinds. */
+export const ModelOp = z.discriminatedUnion("type", [
+  ...SlidesModelOp.options,
+  InsertBlock,
+  SetBlock,
+  DeleteBlock,
+  MoveBlock,
+  SetCells,
+  SetCellStyle,
+  InsertRows,
+  DeleteRows,
+  InsertCols,
+  DeleteCols,
+  SetColWidth,
+  SortRange,
+  AddChart,
+  DeleteChart,
+  SetFrozen,
+  AddNote,
+  SetNote,
+  DeleteNote,
 ]);
 export type ModelOp = z.infer<typeof ModelOp>;
 
@@ -155,6 +225,11 @@ export const Op = z.discriminatedUnion("type", [
   InsertSlide,
   InsertElement,
   RemoveCitation,
+  RestoreBlock,
+  RestoreCells,
+  RestoreChart,
+  SetGrid,
+  RestoreNote,
   Noop,
 ]);
 export type Op = z.infer<typeof Op>;

@@ -6,7 +6,19 @@ import { useVoice } from "@/store/voice";
 import { LevelBars, MicButton } from "./MicButton";
 
 /** Push-to-talk, what was heard, and a typed fallback, pinned under the stage. */
-export function Dock({ onPrompt, onStop, disabled, className }: { onPrompt: (t: string) => void; onStop: () => void; disabled: boolean; className?: string }) {
+export function Dock({
+  onPrompt,
+  onStop,
+  disabled,
+  placeholder = "Or type an edit…",
+  className,
+}: {
+  onPrompt: (t: string) => void;
+  onStop: () => void;
+  disabled: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
   const busy = useDeck(isBusy);
   const voice = useVoice((s) => s.state);
   const transcript = useVoice((s) => s.transcript);
@@ -23,7 +35,7 @@ export function Dock({ onPrompt, onStop, disabled, className }: { onPrompt: (t: 
   const label =
     voice === "recording" ? "Listening" : voice === "uploading" ? "Transcribing" : error ? "Mic problem" : transcript ? "Heard" : supported ? "Hold Space to talk" : "Type a request";
   const heard =
-    voice === "recording" ? "Release to send" : voice === "uploading" ? "One moment…" : error ? error : transcript ? `“${transcript}”` : busy ? "Talk or type to interrupt Muse" : "Ask for a deck, or a change";
+    voice === "recording" ? "Release to send" : voice === "uploading" ? "One moment…" : error ? error : transcript ? `“${transcript}”` : busy ? "Talk or type to interrupt Muse" : "Ask Muse to build or change this";
 
   return (
     <div className={cn("flex items-center gap-3 border-t border-white/5 bg-gradient-to-t from-[#090b1a]/95 to-[#090b1a]/60 px-4 py-3 lg:gap-4 lg:px-6", className)}>
@@ -47,7 +59,7 @@ export function Dock({ onPrompt, onStop, disabled, className }: { onPrompt: (t: 
           value={text}
           maxLength={2000}
           onChange={(e) => setText(e.target.value)}
-          placeholder={busy ? "Interrupt with a new request…" : "Or type an edit…"}
+          placeholder={busy ? "Interrupt with a new request…" : placeholder}
           className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-dim"
         />
         {busy && !disabled && (

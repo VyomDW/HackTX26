@@ -3,7 +3,8 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
-import { getRoom, type Room } from "./rooms/room";
+import { deleteRoom, getRoom, listRooms, type Room } from "./rooms/room";
+import { removeSaved } from "./rooms/store";
 import { transcribe } from "./integrations/voice";
 
 const app = Fastify({ logger: true });
@@ -13,6 +14,19 @@ await app.register(cors, { origin: env.clientOrigin });
 await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
+
+/** The workspace file list for the home screen, most recently edited first. */
+app.get("/docs", async () =>
+  listRooms()
+    .map((r) => ({ id: r.id, kind: r.kind, title: r.doc.title, updatedAt: r.updatedAt, online: r.members.size }))
+    .sort((a, b) => b.updatedAt - a.updatedAt),
+);
+
+app.delete<{ Params: { id: string } }>("/docs/:id", async (req) => {
+  deleteRoom(req.params.id);
+  removeSaved(req.params.id);
+  return { ok: true };
+});
 
 app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 * 1024 }, (_req, body, done) => done(null, body));
 
@@ -52,7 +66,7 @@ app.register(async (scope) => {
       const msg = parsed.data;
       if (msg.type === "join") {
         if (room && member) room.leave(member);
-        room = getRoom(msg.roomId);
+        room = getRoom(msg.roomId, msg.kind);
         member = { socket, userId: msg.userId, name: msg.name };
         room.join(member);
         return;

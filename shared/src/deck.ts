@@ -104,12 +104,14 @@ export const Slide = z.object({
 export type Slide = z.infer<typeof Slide>;
 
 export const Deck = z.object({
+  kind: z.literal("slides"),
   id: z.string(),
+  title: z.string(),
   slides: z.array(Slide),
 });
 export type Deck = z.infer<typeof Deck>;
 
-export const emptyDeck = (id: string): Deck => ({ id, slides: [] });
+export const emptyDeck = (id: string): Deck => ({ kind: "slides", id, title: "Untitled presentation", slides: [] });
 
 const INK = "#0f172a";
 const MUTED = "#64748b";

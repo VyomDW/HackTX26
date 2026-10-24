@@ -1,5 +1,5 @@
 import type { Element, Layout, ShapeKind, StylePatch, UserOp } from "@hacktx/shared";
-import { useDeck } from "@/store/deck";
+import { useDeck, selectDeck } from "@/store/deck";
 import { commit, currentSlide, selectedElement, useEditor } from "@/store/editor";
 import { fileToDataUrl, imageBox, newElementId, nextSlideId, toggleBullets } from "./canvas";
 
@@ -17,7 +17,7 @@ const LAYOUT_ROLES: Record<Layout, string[]> = {
 };
 
 export function addSlide(layout: Layout) {
-  const { deck } = useDeck.getState();
+  const deck = selectDeck(useDeck.getState());
   const id = nextSlideId(deck);
   const afterId = currentSlide()?.id;
   // Empty placeholders, like "Click to add title" in Slides.
@@ -27,13 +27,13 @@ export function addSlide(layout: Layout) {
 }
 
 export function duplicateSlide(slideId: string) {
-  const newId = nextSlideId(useDeck.getState().deck);
+  const newId = nextSlideId(selectDeck(useDeck.getState()));
   commit({ type: "duplicate_slide", slideId, newId });
   useEditor.getState().setSlide(newId);
 }
 
 export function deleteSlide(slideId: string) {
-  const { slides } = useDeck.getState().deck;
+  const { slides } = selectDeck(useDeck.getState());
   const i = slides.findIndex((s) => s.id === slideId);
   commit({ type: "delete_slide", slideId });
   const next = slides[i + 1] ?? slides[i - 1];

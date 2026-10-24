@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { ChevronDown, Undo2 } from "lucide-react";
 import type { Deck, OpEnvelope, Turn } from "@hacktx/shared";
 import { cn } from "@/lib/utils";
-import { isBusy, turnSummary, useDeck } from "@/store/deck";
+import { isBusy, selectDeck, turnSummary, useDeck } from "@/store/deck";
 import { useEditor } from "@/store/editor";
 import { Avatar } from "./Presence";
 
 /** Ops that are bookkeeping rather than an edit someone would want to see or undo on its own. */
-const HIDDEN = new Set(["focus", "noop", "set_image_url"]);
+const HIDDEN = new Set(["focus", "noop", "set_image_url", "set_grid", "restore_cells", "restore_chart", "restore_note"]);
 
 type Item = { kind: "turn"; ts: number; turn: Turn } | { kind: "op"; ts: number; env: OpEnvelope };
 
@@ -61,6 +61,48 @@ export function describe(env: OpEnvelope, deck: Deck): string {
       return `restored a slide`;
     case "reorder_slide":
       return `moved a slide to position ${op.toIndex + 1}`;
+    case "set_title":
+      return `renamed the file to “${clip(op.title, 40)}”`;
+    case "insert_block":
+      return op.text ? `wrote “${clip(op.text)}”` : `added a ${op.blockType} block`;
+    case "set_block":
+      return op.text !== undefined ? `rewrote a paragraph: “${clip(op.text)}”` : "reformatted a paragraph";
+    case "delete_block":
+      return "deleted a paragraph";
+    case "move_block":
+      return "moved a paragraph";
+    case "restore_block":
+      return "restored a paragraph";
+    case "set_cells": {
+      const cells = Object.keys(op.cells).map((a) => a.toUpperCase());
+      return cells.length === 1 ? `filled ${cells[0]}` : `filled ${cells.length} cells (${cells[0]}…${cells.at(-1)})`;
+    }
+    case "set_cell_style":
+      return `formatted ${op.range.toUpperCase()}`;
+    case "sort_range":
+      return `sorted ${op.range.toUpperCase()} by ${op.byCol.toUpperCase()}`;
+    case "insert_rows":
+      return op.count === 1 ? "inserted a row" : `inserted ${op.count} rows`;
+    case "delete_rows":
+      return op.count === 1 ? "deleted a row" : `deleted ${op.count} rows`;
+    case "insert_cols":
+      return op.count === 1 ? "inserted a column" : `inserted ${op.count} columns`;
+    case "delete_cols":
+      return op.count === 1 ? "deleted a column" : `deleted ${op.count} columns`;
+    case "set_col_width":
+      return `resized column ${op.col.toUpperCase()}`;
+    case "add_chart":
+      return `added a ${op.chartType} chart${op.title ? ` “${clip(op.title, 30)}”` : ""}`;
+    case "delete_chart":
+      return "deleted a chart";
+    case "set_frozen":
+      return op.rows ? `froze the top ${op.rows === 1 ? "row" : `${op.rows} rows`}` : "unfroze rows";
+    case "add_note":
+      return `added a note “${clip(op.title || op.body, 40)}”`;
+    case "set_note":
+      return op.pinned !== undefined && op.title === undefined && op.body === undefined ? (op.pinned ? "pinned a note" : "unpinned a note") : "edited a note";
+    case "delete_note":
+      return "deleted a note";
     default:
       return "made an edit";
   }
@@ -72,8 +114,21 @@ const ago = (ts: number, now: number) => {
 };
 
 /** Everything that happened in the room, newest first, with an Undo on each edit. */
-export function Activity({ userId, compact = false, className }: { userId: string; compact?: boolean; className?: string }) {
-  const deck = useDeck((s) => s.deck);
+export function Activity({
+  userId,
+  compact = false,
+  suggestions,
+  onPick,
+  className,
+}: {
+  userId: string;
+  compact?: boolean;
+  /** Starter requests shown while the file has no history yet. */
+  suggestions?: string[];
+  onPick?: (text: string) => void;
+  className?: string;
+}) {
+  const deck = useDeck(selectDeck);
   const history = useDeck((s) => s.history);
   const turns = useDeck((s) => s.turns);
   const users = useDeck((s) => s.users);
@@ -104,7 +159,20 @@ export function Activity({ userId, compact = false, className }: { userId: strin
         <h4 className="flex items-baseline justify-between font-display text-[15px] font-bold">
           Activity <span className="font-ui text-[11px] font-normal text-dim">{edits === 1 ? "1 edit" : `${edits} edits`}</span>
         </h4>
-        {items.length === 0 && <p className="text-sm text-dim">Requests and every edit show up here, each with its own Undo.</p>}
+        {items.length === 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-dim">Requests and every edit show up here, each with its own Undo.</p>
+            {suggestions?.map((t) => (
+              <button
+                key={t}
+                onClick={() => onPick?.(t)}
+                className="block w-full rounded-lg border border-line px-3 py-2 text-left text-sm text-ink/80 transition hover:border-orb hover:text-orb"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
         <ul className="-mx-1 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-1 [scrollbar-width:thin]">
           {items.map((item, i) => {
             const live = i === 0 && busy;

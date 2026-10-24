@@ -109,6 +109,26 @@
   color: var(--ink);
   color-scheme: dark;
 }
+/* Light "paper" inside the night theme (a coloured note): the stock light palette again. */
+.night .paper {
+  --color-white: #ffffff;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  color: #0f172a;
+  color-scheme: light;
+}
+/* --color-white now paints dark panels, so white text has to be pinned back to white. */
+.night .text-white {
+  color: #fff;
+}
 /* Buttons that put white text on the (now amber) violet fill need dark text instead. */
 .night .bg-violet-600.text-white,
 .night .bg-violet-600 {
@@ -165,5 +185,18 @@
     height: 7.5in;
     overflow: hidden;
     break-after: page;
+  }
+}
+
+/* Spreadsheet cells the AI just changed fade from violet. */
+.cell-flash {
+  animation: cellflash 1.4s ease-out forwards;
+}
+@keyframes cellflash {
+  from {
+    background: rgb(167 139 250 / 0.45);
+  }
+  to {
+    background: transparent;
   }
 }

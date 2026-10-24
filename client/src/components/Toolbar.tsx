@@ -42,7 +42,7 @@ import type { ShapeKind, Style } from "@hacktx/shared";
 import * as act from "@/lib/actions";
 import { FONT_SIZES, FONTS, SWATCHES } from "@/lib/canvas";
 import { cn } from "@/lib/utils";
-import { useDeck } from "@/store/deck";
+import { useDeck, selectDeck } from "@/store/deck";
 import { commit, useEditor } from "@/store/editor";
 import { Popover } from "./ui/popover";
 
@@ -59,7 +59,7 @@ const SHAPES: { kind: ShapeKind; icon: LucideIcon; label: string }[] = [
 
 /** Google Slides-style toolbar: insert tools always, formatting for the selection, slide settings otherwise. */
 export function Toolbar() {
-  const deck = useDeck((s) => s.deck);
+  const deck = useDeck(selectDeck);
   const slideId = useEditor((s) => s.slideId);
   const selectedId = useEditor((s) => s.selectedId);
   const fileRef = useRef<HTMLInputElement>(null);

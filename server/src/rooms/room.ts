@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import {
   applyOp,
-  emptyDeck,
-  ModelOp,
+  emptyDocument,
+  MODEL_OPS,
   OpError,
-  type Deck,
+  type DocKind,
+  type Document,
+  type ModelOp,
   type Op,
   type OpEnvelope,
   type ServerMessage,
@@ -15,64 +17,12 @@ import {
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { lines } from "../ndjson";
-
-/** Standing instructions sent to Muse Spark as a developer message on every turn. */
-const SYSTEM_PROMPT = `You are a live co-editor for a slide deck. Users watch your edits appear one by one as you stream them.
-
-OUTPUT FORMAT
-Reply with editing operations only: exactly one JSON object per line, nothing else.
-No prose, no markdown, no code fences, no arrays, no trailing commas. Each line must parse on its own.
-
-CANVAS
-Every slide is 1280 wide by 720 tall. Every element has a box {x,y,w,h,rotate} in these units (x,y = top-left corner; rotate in degrees)
-and a style. Font sizes, stroke widths and corner radii use the same units. Later elements in a slide's list are drawn on top.
-
-OPERATIONS
-Structure:
-{"type":"add_slide","id":"s3","layout":"bullets","afterId":"s2"}   layout: title | bullets | image-left | image-full | quote | blank. afterId optional (default: append).
-{"type":"duplicate_slide","slideId":"s3","newId":"s4"}
-{"type":"delete_slide","slideId":"s3"}
-{"type":"reorder_slide","slideId":"s3","toIndex":0}
-{"type":"set_slide","slideId":"s3","background":"#0f172a","notes":"speaker notes"}   either field optional; null clears it.
-Content:
-{"type":"set_text","slideId":"s3","elementId":"s3-title","text":"..."}   creates a text box if missing, otherwise replaces its text (also works on shapes). Optional "box" and "style" when creating.
-{"type":"add_image","slideId":"s3","elementId":"s3-img","prompt":"short visual description"}   optional "box", "style".
-{"type":"add_shape","slideId":"s3","elementId":"s3-badge","shape":"rounded","text":"New"}   shape: rect | rounded | ellipse | triangle | diamond | star | line | arrow. Optional "box", "style", "text".
-{"type":"delete_element","slideId":"s3","elementId":"s3-body"}
-Design:
-{"type":"set_box","slideId":"s3","elementId":"s3-title","x":80,"y":40,"w":800,"h":120,"rotate":0}   move/resize/rotate; give only the fields that change.
-{"type":"set_style","slideId":"s3","elementId":"s3-title","style":{"color":"#7c3aed","bold":true}}   give only the properties that change; null resets one.
-{"type":"reorder_element","slideId":"s3","elementId":"s3-badge","toIndex":0}   0 = send to back.
-View:
-{"type":"focus","slideId":"s3","elementId":"s3-title"}   moves the user's view; elementId optional.
-
-STYLE PROPERTIES
-Text: fontFamily (Inter | Poppins | Montserrat | Playfair Display | Lora | Merriweather | Oswald | Roboto Mono), fontSize, color, bold, italic, underline, strike,
-      align (left | center | right), valign (top | middle | bottom), lineHeight.
-Box: fill (background color), stroke (border color), strokeWidth, radius, opacity (0 to 1). Images: fit (cover | contain).
-Colors are hex strings like "#1e293b". Inside text, **double asterisks** make words bold and *single asterisks* make them italic.
-
-ELEMENT IDS (always "<slideId>-<role>")
-Layouts place these roles automatically, so you do not need box or style for them:
-title layout:       -title, -subtitle
-bullets layout:     -title, -body
-image-left layout:  -title, -body, -img
-image-full layout:  -title, -img
-quote layout:       -quote, -attribution
-Any other role (e.g. -badge, -chart, -note) is free-form: give it a box so it lands where you want.
-
-RULES
-1. You receive the current deck as JSON with every request. Reuse its slide and element ids when editing. Never invent ids for things that do not exist.
-2. New slides need ids not already in the deck; continue the numbering (s1, s2, s3...).
-3. Emit add_slide before any operation on that slide. Finish one slide before starting the next, and end each slide with a focus on it.
-4. Body text: 3 to 5 bullets, each starting with "• ", separated by \\n, each under 12 words. Titles under 60 characters.
-5. For a new presentation, build 4 to 6 slides, starting with a title slide. Rely on layout defaults; add design touches only when they help.
-6. For an edit request, change only what was asked. Do not rebuild the deck. For "move", "bigger", "color", "font" style requests use set_box and set_style.
-7. Keep everything inside the 1280x720 canvas, keep text readable (fontSize 18 or more) and keep enough contrast with the slide background.
-8. Never emit add_citation or set_image_url; the server handles sources and image generation.
-9. If the request is unclear, make a sensible choice rather than asking.`;
+import { loadRooms, scheduleSave } from "./store";
+import { describeDocument, SYSTEM_PROMPTS } from "./prompts";
 
 const PROMPTS_PER_MINUTE = 20;
+
+const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook" };
 
 /** Turns SDK failures into something worth showing a user. */
 function errorMessage(err: unknown): string {
@@ -98,18 +48,26 @@ interface Applied {
 }
 
 export class Room {
-  deck: Deck;
+  doc: Document;
   members = new Set<Member>();
   history: Applied[] = [];
   conversation: { role: "user" | "assistant"; text: string }[] = [];
   turns: Turn[] = [];
+  updatedAt = Date.now();
   private inflight?: { controller: AbortController; turnId: string };
   private recentPrompts: number[] = [];
   /** Per-user undo/redo of editor changes; each entry is a group of opIds reverted together. */
   private stacks = new Map<string, { undo: string[][]; redo: string[][] }>();
 
-  constructor(readonly id: string) {
-    this.deck = emptyDeck(id);
+  constructor(
+    readonly id: string,
+    kind: DocKind,
+  ) {
+    this.doc = emptyDocument(kind, id);
+  }
+
+  get kind(): DocKind {
+    return this.doc.kind;
   }
 
   join(member: Member) {
@@ -121,7 +79,7 @@ export class Room {
   private sendSnapshot(member: Member) {
     this.send(member.socket, {
       type: "snapshot",
-      deck: this.deck,
+      doc: this.doc,
       history: this.history.map((h) => h.envelope),
       turns: this.turns,
     });
@@ -132,11 +90,12 @@ export class Room {
     this.broadcastPresence();
   }
 
-  /** Applies one op to the authoritative deck and broadcasts it. Returns the new opId, or undefined if it was rejected. */
+  /** Applies one op to the authoritative document and broadcasts it. Returns the new opId, or undefined if it was rejected. */
   apply(op: Op, actor: string, meta: { undoes?: string; turnId?: string } = {}): string | undefined {
     try {
-      const { deck, inverse } = applyOp(this.deck, op);
-      this.deck = deck;
+      const { doc, inverse } = applyOp(this.doc, op);
+      this.doc = doc;
+      scheduleSave(this);
       const envelope: OpEnvelope = { opId: randomUUID(), actor, ts: Date.now(), op, ...meta };
       this.history.push({ envelope, inverse });
       this.broadcast({ type: "op", envelope });
@@ -228,6 +187,7 @@ export class Room {
     const turn: Turn = { turnId: randomUUID(), userId, name: speaker, text, ts: now };
     this.inflight = { controller, turnId: turn.turnId };
     this.turns.push(turn);
+    scheduleSave(this);
     this.broadcast({ type: "turn", turn });
     this.pending.push({ speaker, text });
     const requests = [...this.pending];
@@ -251,7 +211,7 @@ export class Room {
           console.warn(`[room ${this.id}] malformed line`, line);
           continue;
         }
-        const op = ModelOp.safeParse(parsed);
+        const op = MODEL_OPS[this.kind].safeParse(parsed);
         if (!op.success) {
           console.warn(`[room ${this.id}] invalid op`, line);
           continue;
@@ -281,8 +241,9 @@ export class Room {
 
   /** An add_slide for a content op that targets a slide which does not exist yet. */
   private missingSlide(op: ModelOp): ModelOp | undefined {
+    if (this.doc.kind !== "slides") return;
     if (op.type !== "set_text" && op.type !== "add_image" && op.type !== "add_shape") return;
-    if (this.deck.slides.some((s) => s.id === op.slideId)) return;
+    if (this.doc.slides.some((s) => s.id === op.slideId)) return;
     const layout = op.type === "add_image" ? "image-left" : op.elementId.endsWith("-quote") ? "quote" : "bullets";
     return { type: "add_slide", id: op.slideId, layout };
   }
@@ -290,14 +251,10 @@ export class Room {
   /** Built before the new turn is recorded, so history holds only earlier turns. */
   private buildMessages(requests: { speaker: string; text: string }[]): ChatMessage[] {
     const request = requests.length === 1 ? requests[0]!.text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
-    // Uploaded images are inlined as data URLs; they would swamp the prompt and the model can't use them anyway.
-    const deck = JSON.stringify(this.deck, (key, value) =>
-      key === "url" && typeof value === "string" && value.startsWith("data:") ? "(uploaded image)" : value,
-    );
     return [
-      { role: "developer", content: SYSTEM_PROMPT },
+      { role: "developer", content: SYSTEM_PROMPTS[this.kind] },
       ...this.conversation.slice(-10).map(({ role, text }) => ({ role, content: text })),
-      { role: "user", content: `Current deck:\n${deck}\n\nRequest: ${request}` },
+      { role: "user", content: `Current ${NOUN[this.kind]}:\n${describeDocument(this.doc)}\n\nRequest: ${request}` },
     ];
   }
 
@@ -316,10 +273,18 @@ export class Room {
   }
 }
 
-const rooms = new Map<string, Room>();
+const rooms = loadRooms((id, kind) => new Room(id, kind));
 
-export const getRoom = (id: string) => {
+/** Gets a room, creating it as the given kind (default slides) if it doesn't exist yet. */
+export const getRoom = (id: string, kind: DocKind = "slides") => {
   let room = rooms.get(id);
-  if (!room) rooms.set(id, (room = new Room(id)));
+  if (!room) {
+    rooms.set(id, (room = new Room(id, kind)));
+    scheduleSave(room);
+  }
   return room;
 };
+
+export const listRooms = () => [...rooms.values()];
+
+export const deleteRoom = (id: string) => rooms.delete(id);

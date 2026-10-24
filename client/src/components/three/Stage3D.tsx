@@ -5,7 +5,7 @@ import { CSS3DObject, CSS3DRenderer, CSS3DSprite } from "three/examples/jsm/rend
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line, PerformanceMonitor, Trail } from "@react-three/drei";
 import { CANVAS_H, CANVAS_W, type Slide } from "@hacktx/shared";
-import { isBusy, useDeck } from "@/store/deck";
+import { isBusy, selectDeck, useDeck } from "@/store/deck";
 import { useEditor } from "@/store/editor";
 import { useVoice } from "@/store/voice";
 import { Stage } from "../Stage";
@@ -166,7 +166,7 @@ export default function Stage3D({ className }: { className?: string }) {
 }
 
 function Scene({ refs, css }: { refs: SceneRefs; css: CSS3DRenderer }) {
-  const slides = useDeck((s) => s.deck.slides);
+  const slides = useDeck((s) => selectDeck(s).slides);
   const slideId = useEditor((s) => s.slideId);
   const current = Math.max(0, slides.findIndex((s) => s.id === slideId));
 
@@ -197,7 +197,7 @@ function CssPass({ css }: { css: CSS3DRenderer }) {
 
 /** The DOM half of the 3D stage, rendered from the main React tree into the CSS3D planes. */
 function DomContent() {
-  const slides = useDeck((s) => s.deck.slides);
+  const slides = useDeck((s) => selectDeck(s).slides);
   const slideId = useEditor((s) => s.slideId);
   const busy = useDeck(isBusy);
   const current = Math.max(0, slides.findIndex((s) => s.id === slideId));
@@ -357,7 +357,7 @@ function AiOrb({ refs }: { refs: SceneRefs }) {
     if (!g) return;
     const st = useDeck.getState();
     const busy = isBusy(st);
-    const slides = st.deck.slides;
+    const slides = selectDeck(st).slides;
     const focusId = st.focus?.slideId;
     const slideId = focusId && refs.groups.has(focusId) ? focusId : (useEditor.getState().slideId ?? slides[0]?.id);
     const group = slideId ? refs.groups.get(slideId) : undefined;

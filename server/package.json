@@ -8,7 +8,7 @@
     "start": "tsx --env-file-if-exists=.env src/index.ts",
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "tsx --test test/*.test.ts"
+    "test": "ROOM_STORE=off tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
@@ -16,7 +16,8 @@
     "@hacktx/shared": "*",
     "fastify": "^5.12.7",
     "openai": "^7.43.0",
-    "ws": "^8.22.0"
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2",

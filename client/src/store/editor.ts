@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { ClientMessage, Element, UserOp } from "@hacktx/shared";
-import { useDeck } from "./deck";
+import { useDeck, selectDeck } from "./deck";
 
 export type View = "3d" | "2d";
 
@@ -63,7 +63,7 @@ export function commit(...ops: UserOp[]) {
 
 /** The slide currently on stage, falling back to the first one. */
 export function currentSlide() {
-  const { deck } = useDeck.getState();
+  const deck = selectDeck(useDeck.getState());
   const { slideId } = useEditor.getState();
   return deck.slides.find((s) => s.id === slideId) ?? deck.slides[0];
 }

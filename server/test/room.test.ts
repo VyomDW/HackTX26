@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import type { Deck } from "@hacktx/shared";
 
 const fixture = (name: string) => fileURLToPath(new URL(`../fixtures/${name}.ndjson`, import.meta.url));
 
@@ -9,7 +10,7 @@ async function roomWith(name: string) {
   const { env } = await import("../src/env");
   env.museFixture = fixture(name);
   const { Room } = await import("../src/rooms/room");
-  const room = new Room(`test-${name}-${Math.random()}`);
+  const room = new Room(`test-${name}-${Math.random()}`, "slides");
   const sent: any[] = [];
   room.join({ userId: "u1", socket: { OPEN: 1, readyState: 1, send: (s: string) => sent.push(JSON.parse(s)) } as any });
   return { room, sent };
@@ -18,15 +19,15 @@ async function roomWith(name: string) {
 test("a clean recorded response builds the whole deck", async () => {
   const { room } = await roomWith("coffee");
   await room.prompt("Make a pitch about sustainable coffee", "u1");
-  assert.deepEqual(room.deck.slides.map((s) => s.id), ["s1", "s2", "s3", "s4", "s5"]);
-  assert.equal(room.deck.slides[1]!.elements.length, 2);
+  assert.deepEqual((room.doc as Deck).slides.map((s) => s.id), ["s1", "s2", "s3", "s4", "s5"]);
+  assert.equal((room.doc as Deck).slides[1]!.elements.length, 2);
 });
 
 test("bad lines are skipped and a dropped add_slide is recovered", async () => {
   const { room, sent } = await roomWith("coffee-malformed");
   await room.prompt("Make a pitch about sustainable coffee", "u1");
-  assert.deepEqual(room.deck.slides.map((s) => s.id), ["s1", "s2", "s3", "s4", "s5"]);
-  const s2 = room.deck.slides[1]!;
+  assert.deepEqual((room.doc as Deck).slides.map((s) => s.id), ["s1", "s2", "s3", "s4", "s5"]);
+  const s2 = (room.doc as Deck).slides[1]!;
   assert.deepEqual(s2.elements.map((e) => e.id), ["s2-title", "s2-body"]);
   assert.ok(!sent.some((m) => m.type === "error"), "no error shown to users");
 });
@@ -35,7 +36,7 @@ test("undoing a turn reverts every op from that response", async () => {
   const { room } = await roomWith("coffee");
   await room.prompt("Make a pitch about sustainable coffee", "u1");
   room.undoTurn(room.turns[0]!.turnId, "u1");
-  assert.equal(room.deck.slides.length, 0);
+  assert.equal((room.doc as Deck).slides.length, 0);
 });
 
 test("a second prompt cancels the first mid-stream", async () => {
@@ -56,7 +57,7 @@ test("stop cancels the response and returns to idle", async () => {
   await new Promise((r) => setTimeout(r, 500));
   room.stop();
   await p;
-  assert.ok(room.deck.slides.length < 5);
+  assert.ok((room.doc as Deck).slides.length < 5);
   assert.equal(sent.filter((m) => m.type === "ai_status").at(-1).status, "idle");
 });
 
@@ -74,7 +75,7 @@ test("editor ops are one undo step each, and redo restores them", async () => {
   );
   room.userOps([{ type: "set_box", slideId: "s1", elementId: "s1-star", x: 10, y: 20, rotate: 45 }], m);
   room.userOps([{ type: "set_style", slideId: "s1", elementId: "s1-star", style: { fill: "#ff0000", strokeWidth: 4 } }], m);
-  const star = () => room.deck.slides[0]?.elements[0];
+  const star = () => (room.doc as Deck).slides[0]?.elements[0];
   assert.deepEqual([star().box.x, star().box.rotate, star().style.fill], [10, 45, "#ff0000"]);
 
   room.undoMine("u1");
@@ -87,7 +88,7 @@ test("editor ops are one undo step each, and redo restores them", async () => {
   room.undoMine("u1");
   room.undoMine("u1");
   room.undoMine("u1");
-  assert.equal(room.deck.slides.length, 0, "first step removed slide and shape together");
+  assert.equal((room.doc as Deck).slides.length, 0, "first step removed slide and shape together");
 });
 
 test("duplicate_slide renames element ids and reorder_element changes stacking", async () => {
@@ -103,8 +104,8 @@ test("duplicate_slide renames element ids and reorder_element changes stacking",
     ],
     m,
   );
-  assert.deepEqual(room.deck.slides[1].elements.map((e: any) => e.id), ["s2-bg", "s2-title"]);
-  assert.equal(room.deck.slides[1].elements[1].style.fontSize, 44, "layout default style applied");
+  assert.deepEqual((room.doc as Deck).slides[1].elements.map((e: any) => e.id), ["s2-bg", "s2-title"]);
+  assert.equal((room.doc as Deck).slides[1].elements[1].style.fontSize, 44, "layout default style applied");
 });
 
 test("uploaded images are hidden from the model prompt", async () => {
