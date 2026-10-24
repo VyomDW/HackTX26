@@ -1,19 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, Crosshair, Link2, Square, Undo2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, Link2, X } from "lucide-react";
+import { Activity, AiAvatar } from "@/components/Activity";
+import { Dock } from "@/components/Dock";
 import { Present, PrintDeck } from "@/components/Present";
-import { MicButton } from "@/components/MicButton";
-import { Avatar, NameDialog, PresenceStack } from "@/components/Presence";
+import { useVoiceBridge } from "@/components/MicButton";
+import { NameDialog, PresenceStack } from "@/components/Presence";
 import { NewSlideButton, SlideRail } from "@/components/SlideRail";
 import { Stage } from "@/components/Stage";
+import { StageOverlays } from "@/components/StageOverlays";
 import { Toolbar } from "@/components/Toolbar";
 import { useIdentity } from "@/lib/identity";
 import { useShortcuts } from "@/lib/shortcuts";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
-import { isBusy, turnSummary, useDeck } from "@/store/deck";
-import { commit, useEditor } from "@/store/editor";
+import { isBusy, useDeck } from "@/store/deck";
+import { commit, useEditor, type View } from "@/store/editor";
+
+// Three.js only downloads for people who actually get the 3D stage.
+const Stage3D = lazy(() => import("@/components/three/Stage3D"));
 
 const roomId = new URLSearchParams(location.search).get("room") ?? "demo";
 
@@ -23,10 +28,35 @@ const SUGGESTIONS = [
   "Plan a team offsite agenda",
 ];
 
+const hasWebGL = (() => {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") ?? c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+})();
+
+function useMedia(query: string) {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setMatch(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
+
 export default function App() {
   const { userId, name, setName, suggestedName } = useIdentity();
   // Nobody joins the room until they have a name, so the transcript and the AI prompt never show a raw id.
-  if (!name) return <NameDialog initial={suggestedName} onSave={setName} />;
+  if (!name)
+    return (
+      <div className="night stage-bg h-dvh">
+        <NameDialog initial={suggestedName} onSave={setName} />
+      </div>
+    );
   return <Room userId={userId} name={name} onRename={setName} />;
 }
 
@@ -35,10 +65,15 @@ function Room({ userId, name, onRename }: { userId: string; name: string; onRena
   const { send, connected } = useRoomSocket(roomId, userId, name);
   const deck = useDeck((s) => s.deck);
   const focus = useDeck((s) => s.focus);
-  const { slideId, follow, presenting } = useEditor();
+  const { slideId, follow, presenting, view, selectedId } = useEditor();
+  const desktop = useMedia("(min-width: 1024px)");
   useShortcuts();
+  useVoiceBridge(roomId, userId);
 
   useEffect(() => useEditor.setState({ send }), [send]);
+  useEffect(() => {
+    if (!hasWebGL && useEditor.getState().view === "3d") useEditor.getState().setView("2d", "no-webgl");
+  }, []);
 
   // Follow mode keeps the stage on whatever slide the AI is touching.
   useEffect(() => {
@@ -47,6 +82,7 @@ function Room({ userId, name, onRename }: { userId: string; name: string; onRena
 
   const current = deck.slides.find((s) => s.id === slideId) ?? deck.slides[0];
   const currentIndex = current ? deck.slides.indexOf(current) : -1;
+  const flat = view === "2d";
 
   const prompt = (text: string) => {
     send({ type: "prompt", text });
@@ -55,61 +91,88 @@ function Room({ userId, name, onRename }: { userId: string; name: string; onRena
 
   return (
     <>
-      <div className="flex h-dvh flex-col bg-slate-100 text-slate-900 print:hidden">
-        <Header userId={userId} connected={connected} onStop={() => send({ type: "stop" })} onRename={() => setRenaming(true)} />
-        <Toolbar />
+      <div className="night flex h-dvh flex-col bg-page font-ui text-ink print:hidden">
+        <Header userId={userId} connected={connected} onRename={() => setRenaming(true)} />
+        {flat && <Toolbar />}
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <SlideRail />
+        <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[auto_minmax(0,1fr)_300px] lg:grid-rows-[minmax(0,1fr)_auto]">
+          {flat && (
+            <div className="order-2 flex min-h-0 lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1">
+              <SlideRail />
+            </div>
+          )}
 
-          <main className="order-1 flex min-h-0 min-w-0 flex-1 flex-col lg:order-none">
-            {current ? (
-              <>
-                <StageArea>
-                  <Stage slide={current} />
-                </StageArea>
-                <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 text-sm text-slate-500 lg:px-8">
-                  <span className="tabular-nums">
-                    Slide {currentIndex + 1} of {deck.slides.length}
-                  </span>
-                  <div className="flex items-center gap-2">
+          <main className="stage-bg relative order-1 flex min-h-[44dvh] min-w-0 flex-1 flex-col overflow-hidden lg:order-none lg:col-start-2 lg:row-start-1 lg:min-h-0">
+            {flat ? (
+              current ? (
+                <>
+                  <StageArea>
+                    <Stage slide={current} />
+                  </StageArea>
+                  <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 text-sm text-dim lg:px-8">
+                    <span className="tabular-nums">
+                      Slide {currentIndex + 1} of {deck.slides.length}
+                    </span>
                     <div className="lg:hidden">
                       <NewSlideButton />
                     </div>
-                    <button
-                      onClick={() => useEditor.setState((s) => ({ follow: !s.follow }))}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition",
-                        follow ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-200",
-                      )}
-                    >
-                      <Crosshair className="size-3.5" />
-                      {follow ? "Following Muse" : "Follow Muse"}
-                    </button>
                   </div>
+                  <Notes key={current.id} slideId={current.id} notes={current.notes ?? ""} />
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center p-4">
+                  <EmptyState onPick={prompt} />
                 </div>
-                <Notes key={current.id} slideId={current.id} notes={current.notes ?? ""} />
-              </>
+              )
             ) : (
-              <div className="flex flex-1 items-center justify-center p-4">
-                <EmptyState onPick={prompt} />
+              <>
+                <Suspense fallback={<div className="absolute inset-0 grid place-items-center text-sm text-dim">Setting up the 3D stage…</div>}>
+                  <Stage3D className="absolute inset-0" />
+                </Suspense>
+                {!current && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+                    <div className="pointer-events-auto">
+                      <EmptyState onPick={prompt} />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <StageOverlays userId={userId} />
+            {/* On the 3D stage the formatting toolbar floats in only while something is selected, so the stage never jumps. */}
+            {!flat && selectedId && (
+              <div className="absolute inset-x-0 top-0 z-30 shadow-lg">
+                <Toolbar />
               </div>
             )}
           </main>
 
-          <Transcript userId={userId} onPrompt={prompt} onUndo={(turnId) => send({ type: "undo_turn", turnId })} disabled={!connected} />
+          <Activity
+            userId={userId}
+            compact={!desktop}
+            className="order-3 max-h-[34dvh] shrink-0 border-t border-line lg:order-none lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:max-h-none lg:border-l lg:border-t-0"
+          />
+
+          <Dock
+            onPrompt={prompt}
+            onStop={() => send({ type: "stop" })}
+            disabled={!connected}
+            className="order-4 shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] lg:order-none lg:col-start-2 lg:row-start-2"
+          />
         </div>
         <ErrorToast />
       </div>
       {renaming && (
-        <NameDialog
+        <div className="night">
+          <NameDialog
           initial={name}
           onCancel={() => setRenaming(false)}
           onSave={(next) => {
             setRenaming(false);
             onRename(next);
           }}
-        />
+          />
+        </div>
       )}
       {presenting && <Present />}
       <PrintDeck />
@@ -159,146 +222,74 @@ function Notes({ slideId, notes }: { slideId: string; notes: string }) {
   );
 }
 
-function Header({ userId, connected, onStop, onRename }: { userId: string; connected: boolean; onStop: () => void; onRename: () => void }) {
+function Header({ userId, connected, onRename }: { userId: string; connected: boolean; onRename: () => void }) {
   const aiStatus = useDeck((s) => s.aiStatus);
   const busy = useDeck(isBusy);
+  const count = useDeck((s) => s.deck.slides.length);
+  const view = useEditor((s) => s.view);
+  const setView = useEditor((s) => s.setView);
   const [copied, setCopied] = useState(false);
 
   const label = !connected ? "Reconnecting…" : aiStatus === "thinking" ? "Thinking…" : busy ? "Editing…" : "Ready";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="grid size-7 place-items-center rounded-lg bg-violet-600 text-sm font-bold text-white">M</div>
-        <span className="truncate font-semibold">Room {roomId}</span>
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-[#090b1a]/80 px-3 lg:gap-4 lg:px-4">
+      <div className="flex min-w-0 items-center gap-2 font-display text-[17px] font-bold">
+        <span className="orb-core size-3.5 shrink-0 rounded-full" />
+        Muse
       </div>
-      <div className="flex items-center gap-2">
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium",
-            !connected ? "bg-amber-100 text-amber-800" : busy ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600",
-          )}
-        >
-          <span className={cn("size-2 rounded-full", !connected ? "bg-amber-500" : busy ? "animate-pulse bg-violet-500" : "bg-emerald-500")} />
-          {label}
-        </div>
-        {busy && connected && (
-          <Button size="sm" variant="outline" onClick={onStop} className="gap-1.5">
-            <Square className="size-3 fill-current" /> Stop
-          </Button>
+      <div className="hidden min-w-0 border-l border-line pl-3 leading-tight sm:grid">
+        <b className="truncate text-sm font-semibold">Room {roomId}</b>
+        <span className="text-[11px] text-dim">{count === 1 ? "1 slide" : `${count} slides`}</span>
+      </div>
+      <div
+        className={cn(
+          "hidden items-center gap-2 rounded-full px-3 py-1 text-xs font-medium md:flex",
+          !connected ? "bg-amber-500/15 text-amber-300" : busy ? "bg-orb/15 text-orb" : "bg-white/5 text-dim",
         )}
-        <PresenceStack userId={userId} onRename={onRename} />
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            void navigator.clipboard?.writeText(`${location.origin}${location.pathname}?room=${roomId}`);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
-          <span className="hidden sm:inline">{copied ? "Copied" : "Invite"}</span>
-        </Button>
-      </div>
-    </header>
-  );
-}
-
-function Transcript({
-  userId,
-  onPrompt,
-  onUndo,
-  disabled,
-}: {
-  userId: string;
-  onPrompt: (t: string) => void;
-  onUndo: (turnId: string) => void;
-  disabled: boolean;
-}) {
-  const turns = useDeck((s) => s.turns);
-  const history = useDeck((s) => s.history);
-  const busy = useDeck(isBusy);
-  const [text, setText] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns.length, history.length]);
-
-  const submit = () => {
-    if (!text.trim() || disabled) return;
-    onPrompt(text.trim());
-    setText("");
-  };
-
-  return (
-    <aside className="order-3 flex max-h-[45dvh] shrink-0 flex-col border-t border-slate-200 bg-white lg:max-h-none lg:w-80 lg:border-l lg:border-t-0">
-      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4">
-        {turns.length === 0 && <p className="text-sm text-slate-400">Your requests and Muse's edits show up here.</p>}
-        {turns.map((turn, i) => {
-          const { edits, undone } = turnSummary(history, turn.turnId);
-          const working = busy && i === turns.length - 1;
-          return (
-            <div key={turn.turnId} className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Avatar userId={turn.userId} name={turn.name} className="size-4 text-[8px] ring-0" />
-                {turn.userId === userId ? "You" : (turn.name ?? "Someone")}
-              </div>
-              <div className={cn("rounded-2xl rounded-tl-sm bg-slate-100 px-3 py-2 text-sm", undone && "text-slate-400 line-through")}>
-                {turn.text}
-              </div>
-              <div className="flex items-center justify-between pl-1 text-xs">
-                <span className={cn("flex items-center gap-1.5", working ? "text-violet-600" : "text-slate-500")}>
-                  {working && <span className="size-1.5 animate-pulse rounded-full bg-violet-500" />}
-                  {undone ? "Undone" : working ? `Muse is editing · ${edits} edits` : edits ? `Muse made ${edits} edits` : "No changes"}
-                </span>
-                {edits > 0 && !undone && (
-                  <button onClick={() => onUndo(turn.turnId)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900">
-                    <Undo2 className="size-3" /> Undo
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <form
-        className="border-t border-slate-200 p-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
       >
-        <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100">
-          <textarea
-            rows={2}
-            maxLength={2000}
-            className="flex-1 resize-none bg-transparent px-1 text-sm outline-none placeholder:text-slate-400"
-            placeholder={busy ? "Interrupt with a new request…" : "Ask Muse to build or change slides…"}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-          <MicButton roomId={roomId} userId={userId} />
-          <Button type="submit" size="icon" disabled={!text.trim() || disabled} className="size-8 shrink-0 rounded-lg bg-violet-600 hover:bg-violet-700">
-            <ArrowUp className="size-4" />
-          </Button>
-        </div>
-      </form>
-    </aside>
+        <span className={cn("size-2 rounded-full", !connected ? "bg-amber-400" : busy ? "animate-pulse bg-orb" : "bg-emerald-400")} />
+        {label}
+      </div>
+      <div className="flex-1" />
+      <div className="flex items-center">
+        <PresenceStack userId={userId} onRename={onRename} />
+        <AiAvatar className="-ml-2 ring-2 ring-[#0a0d1e]" />
+      </div>
+      <span className="hidden rounded-md border border-line px-2 py-1 font-mono text-[11px] text-dim lg:inline">
+        Room <b className="font-semibold text-ink">{roomId}</b>
+      </span>
+      <div role="group" aria-label="View" className="flex overflow-hidden rounded-lg border border-line text-xs">
+        {(["3d", "2d"] as View[]).map((v) => (
+          <button
+            key={v}
+            aria-pressed={view === v}
+            onClick={() => setView(v)}
+            className={cn("px-3 py-1.5 uppercase", view === v ? "bg-orb/15 font-bold text-orb" : "text-dim hover:text-ink")}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => {
+          void navigator.clipboard?.writeText(`${location.origin}${location.pathname}?room=${roomId}`);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+        className="flex items-center gap-1.5 rounded-lg bg-orb px-2.5 py-1.5 text-xs font-bold text-orb-ink sm:px-3"
+      >
+        {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
+        <span className="hidden sm:inline">{copied ? "Copied" : "Invite"}</span>
+      </button>
+    </header>
   );
 }
 
 function EmptyState({ onPick }: { onPick: (t: string) => void }) {
   return (
     <div className="flex max-w-md flex-col items-center gap-4 text-center">
-      <h2 className="text-2xl font-bold tracking-tight">What are we presenting?</h2>
+      <h2 className="font-display text-3xl font-bold tracking-tight">What are we presenting?</h2>
       <p className="text-sm text-slate-500">Ask Muse for a deck and watch it build live. Everyone in this room sees the same slides.</p>
       <div className="flex flex-wrap justify-center gap-2">
         {SUGGESTIONS.map((s) => (

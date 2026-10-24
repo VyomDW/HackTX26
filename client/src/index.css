@@ -40,13 +40,111 @@
   --radius-lg: var(--radius);
 }
 
+/* Stage palette from the product mockups: a dark night stage, warm AI orb, paper slides. */
+:root {
+  --page: #0c0e18;
+  --panel: #141829;
+  --line: #272c48;
+  --ink: #e9ebf5;
+  --dim: #9aa0bf;
+  --stage-a: #0a0d1e;
+  --stage-glow: #22224c;
+  --orb: #ffc46b;
+  --orb-ink: #2a1a05;
+  --you: #6cb8ff;
+  --judge: #c29bff;
+  --live: #ff6b6b;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-dim: var(--dim);
+  --color-orb: var(--orb);
+  --color-orb-ink: var(--orb-ink);
+  --color-you: var(--you);
+  --color-judge: var(--judge);
+  --color-live: var(--live);
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-ui: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+/*
+ * Editor chrome (toolbar, rail, popovers) was written against the light slate/violet palette.
+ * Inside .night those scales are remapped so the same classes read as the dark stage theme,
+ * with violet standing in for the AI orb colour. Slides are never inside .night.
+ */
+.night {
+  --color-white: #141829;
+  --color-slate-50: #11142a;
+  --color-slate-100: #1b1f38;
+  --color-slate-200: #272c48;
+  --color-slate-300: #3a4066;
+  --color-slate-400: #7a809f;
+  --color-slate-500: #9aa0bf;
+  --color-slate-600: #b9bed6;
+  --color-slate-700: #d3d6e8;
+  --color-slate-800: #e1e3f0;
+  --color-slate-900: #e9ebf5;
+  --color-violet-50: #2a2312;
+  --color-violet-100: rgb(255 196 107 / 0.14);
+  --color-violet-200: rgb(255 196 107 / 0.25);
+  --color-violet-400: #ffc46b;
+  --color-violet-500: #ffc46b;
+  --color-violet-600: #ffc46b;
+  --color-violet-700: #ffd28a;
+  --background: #141829;
+  --foreground: #e9ebf5;
+  --border: #272c48;
+  --input: #272c48;
+  --muted: #1b1f38;
+  --muted-foreground: #9aa0bf;
+  --accent: #1b1f38;
+  --accent-foreground: #e9ebf5;
+  --primary: #ffc46b;
+  --primary-foreground: #2a1a05;
+  color: var(--ink);
+  color-scheme: dark;
+}
+/* Buttons that put white text on the (now amber) violet fill need dark text instead. */
+.night .bg-violet-600.text-white,
+.night .bg-violet-600 {
+  color: var(--orb-ink);
+}
+
+.orb-core {
+  background: radial-gradient(circle at 40% 35%, #fff 0 16%, var(--orb) 44%, transparent 74%);
+  box-shadow: 0 0 10px 2px rgb(255 196 107 / 0.6);
+}
+.stage-bg {
+  background: radial-gradient(110% 85% at 38% 32%, var(--stage-glow) 0%, var(--stage-a) 62%), var(--stage-a);
+}
+@keyframes orb-ring {
+  0% { transform: scale(1); opacity: 0.65; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+@keyframes dot-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .night *, .night *::before, .night *::after { animation: none !important; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Figtree", "Inter", ui-sans-serif, system-ui, sans-serif;
   }
 }
 
