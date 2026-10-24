@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { useDeck } from "@/store/deck";
+import { useDeck, selectDeck } from "@/store/deck";
 import { currentSlide, useEditor } from "@/store/editor";
 import { SlideView } from "./SlideView";
 
 /** Fullscreen slideshow: arrows, space or click to advance; Escape to leave. */
 export function Present() {
-  const slides = useDeck((s) => s.deck.slides);
+  const slides = useDeck((s) => selectDeck(s).slides);
   const [index, setIndex] = useState(() => Math.max(0, slides.findIndex((s) => s.id === currentSlide()?.id)));
   const ref = useRef<HTMLDivElement>(null);
   const exit = () => {
@@ -63,7 +63,7 @@ export function Present() {
 
 /** Every slide, one per page, shown only when printing (Export PDF uses the browser's Save as PDF). */
 export function PrintDeck() {
-  const slides = useDeck((s) => s.deck.slides);
+  const slides = useDeck((s) => selectDeck(s).slides);
   return (
     <div className="hidden print:block">
       {slides.map((slide) => (

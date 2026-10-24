@@ -69,3 +69,16 @@
     break-after: page;
   }
 }
+
+/* Spreadsheet cells the AI just changed fade from violet. */
+.cell-flash {
+  animation: cellflash 1.4s ease-out forwards;
+}
+@keyframes cellflash {
+  from {
+    background: rgb(167 139 250 / 0.45);
+  }
+  to {
+    background: transparent;
+  }
+}

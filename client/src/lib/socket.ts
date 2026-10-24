@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { ServerMessage, type ClientMessage } from "@hacktx/shared";
+import { ServerMessage, type ClientMessage, type DocKind } from "@hacktx/shared";
 import { useDeck } from "@/store/deck";
 
 const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:8787/ws`;
 
 /** Joins the room and keeps the store in sync; reconnects with backoff if the server drops. */
-export function useRoomSocket(roomId: string, userId: string, name?: string) {
+export function useRoomSocket(roomId: string, userId: string, name?: string, kind?: DocKind) {
   const ref = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -20,14 +20,14 @@ export function useRoomSocket(roomId: string, userId: string, name?: string) {
       ws.onopen = () => {
         attempt = 0;
         setConnected(true);
-        ws.send(JSON.stringify({ type: "join", roomId, userId, name } satisfies ClientMessage));
+        ws.send(JSON.stringify({ type: "join", roomId, userId, name, kind } satisfies ClientMessage));
       };
       ws.onmessage = (ev) => {
         const parsed = ServerMessage.safeParse(JSON.parse(ev.data));
         if (!parsed.success) return;
         const msg = parsed.data;
         const store = useDeck.getState();
-        if (msg.type === "snapshot") store.reset(msg.deck, msg.history, msg.turns);
+        if (msg.type === "snapshot") store.reset(msg.doc, msg.history, msg.turns);
         else if (msg.type === "op") store.receive(msg.envelope);
         else if (msg.type === "turn") store.addTurn(msg.turn);
         else if (msg.type === "presence") store.setUsers(msg.users);
@@ -47,7 +47,7 @@ export function useRoomSocket(roomId: string, userId: string, name?: string) {
       clearTimeout(retry);
       ref.current?.close();
     };
-  }, [roomId, userId, name]);
+  }, [roomId, userId, name, kind]);
 
   const send = useCallback((msg: ClientMessage) => {
     const ws = ref.current;

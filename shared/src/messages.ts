@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Deck } from "./deck";
+import { DocKind, Document } from "./document";
 import { OpEnvelope, UserOp } from "./ops";
 
 /** One user request to the AI, shown in the shared transcript. */
@@ -14,7 +14,8 @@ export type Turn = z.infer<typeof Turn>;
 
 /** Browser -> server. */
 export const ClientMessage = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("join"), roomId: z.string(), userId: z.string(), name: z.string().optional() }),
+  /** kind is only used when the room does not exist yet. */
+  z.object({ type: z.literal("join"), roomId: z.string(), userId: z.string(), name: z.string().optional(), kind: DocKind.optional() }),
   z.object({ type: z.literal("prompt"), text: z.string().trim().min(1).max(2000) }),
   z.object({ type: z.literal("undo"), opId: z.string() }),
   /** Reverts every op from one AI response. */
@@ -31,7 +32,7 @@ export type ClientMessage = z.infer<typeof ClientMessage>;
 
 /** Server -> browser. */
 export const ServerMessage = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("snapshot"), deck: Deck, history: z.array(OpEnvelope), turns: z.array(Turn).default([]) }),
+  z.object({ type: z.literal("snapshot"), doc: Document, history: z.array(OpEnvelope), turns: z.array(Turn).default([]) }),
   z.object({ type: z.literal("op"), envelope: OpEnvelope }),
   z.object({ type: z.literal("turn"), turn: Turn }),
   z.object({ type: z.literal("presence"), users: z.array(z.object({ userId: z.string(), name: z.string().optional() })) }),

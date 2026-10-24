@@ -3,7 +3,7 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import type { Layout } from "@hacktx/shared";
 import * as act from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import { isBusy, useDeck } from "@/store/deck";
+import { isBusy, useDeck, selectDeck } from "@/store/deck";
 import { commit, useEditor } from "@/store/editor";
 import { SlideView } from "./SlideView";
 import { Popover } from "./ui/popover";
@@ -19,7 +19,7 @@ const LAYOUTS: { layout: Layout; label: string }[] = [
 
 /** Slide thumbnails: click to open, drag to reorder, hover for duplicate/delete. */
 export function SlideRail() {
-  const deck = useDeck((s) => s.deck);
+  const deck = useDeck(selectDeck);
   const focus = useDeck((s) => s.focus);
   const busy = useDeck(isBusy);
   const slideId = useEditor((s) => s.slideId);
