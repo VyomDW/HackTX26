@@ -70,16 +70,25 @@ export class Room {
     for (const op of entry.inverse) this.apply(op, actor, opId);
   }
 
-  /** New input cancels any in-flight stream, which gives interruption for free. */
+  /** Requests whose stream hasn't finished yet; an interrupted one is folded into the next prompt. */
+  private pending: { speaker: string; text: string }[] = [];
+
+  /**
+   * New input cancels any in-flight stream (interruption) and re-prompts with every unfinished request,
+   * so when two people talk at once both requests still get done.
+   */
   async prompt(text: string, userId: string) {
     this.inflight?.abort();
     const controller = new AbortController();
     this.inflight = controller;
-    this.conversation.push({ role: "user", text });
+    const speaker = [...this.members].find((m) => m.userId === userId)?.name ?? userId;
+    this.pending.push({ speaker, text });
+    this.conversation.push({ role: "user", text: `${speaker}: ${text}` });
+    const requests = [...this.pending];
     this.broadcast({ type: "ai_status", status: "thinking" });
 
     try {
-      for await (const line of lines(callMuse(this.buildPrompt(text, userId), controller.signal))) {
+      for await (const line of lines(callMuse(this.buildPrompt(requests), controller.signal))) {
         if (controller.signal.aborted) return;
         this.broadcast({ type: "ai_status", status: "streaming" });
         let parsed: unknown;
@@ -97,6 +106,8 @@ export class Room {
         this.apply(op.data, "ai");
       }
     } finally {
+      // Done or failed; either way don't replay these. Aborted ones stay for the prompt that interrupted them.
+      if (!controller.signal.aborted) this.pending = this.pending.filter((r) => !requests.includes(r));
       if (this.inflight === controller) {
         this.inflight = undefined;
         this.broadcast({ type: "ai_status", status: "idle" });
@@ -105,8 +116,9 @@ export class Room {
   }
 
   // TODO(B): system instructions + op schema + trimmed conversation; deck JSON every turn.
-  private buildPrompt(text: string, _userId: string) {
-    return JSON.stringify({ deck: this.deck, conversation: this.conversation.slice(-10), request: text });
+  private buildPrompt(requests: { speaker: string; text: string }[]) {
+    const request = requests.length === 1 ? requests[0].text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
+    return JSON.stringify({ deck: this.deck, conversation: this.conversation.slice(-10), request });
   }
 
   private broadcast(msg: ServerMessage) {
