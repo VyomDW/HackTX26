@@ -1,12 +1,14 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, Crosshair, Link2, Square, Undo2, Users, X } from "lucide-react";
+import { ArrowUp, Check, Crosshair, Link2, Square, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Present, PrintDeck } from "@/components/Present";
 import { MicButton } from "@/components/MicButton";
+import { Avatar, NameDialog, PresenceStack } from "@/components/Presence";
 import { NewSlideButton, SlideRail } from "@/components/SlideRail";
 import { Stage } from "@/components/Stage";
 import { Toolbar } from "@/components/Toolbar";
+import { useIdentity } from "@/lib/identity";
 import { useShortcuts } from "@/lib/shortcuts";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
@@ -22,8 +24,14 @@ const SUGGESTIONS = [
 ];
 
 export default function App() {
-  const userId = useMemo(() => `u-${Math.random().toString(36).slice(2, 8)}`, []);
-  const name = useMemo(() => `Guest ${userId.slice(-3).toUpperCase()}`, [userId]);
+  const { userId, name, setName, suggestedName } = useIdentity();
+  // Nobody joins the room until they have a name, so the transcript and the AI prompt never show a raw id.
+  if (!name) return <NameDialog initial={suggestedName} onSave={setName} />;
+  return <Room userId={userId} name={name} onRename={setName} />;
+}
+
+function Room({ userId, name, onRename }: { userId: string; name: string; onRename: (name: string) => void }) {
+  const [renaming, setRenaming] = useState(false);
   const { send, connected } = useRoomSocket(roomId, userId, name);
   const deck = useDeck((s) => s.deck);
   const focus = useDeck((s) => s.focus);
@@ -48,7 +56,7 @@ export default function App() {
   return (
     <>
       <div className="flex h-dvh flex-col bg-slate-100 text-slate-900 print:hidden">
-        <Header connected={connected} onStop={() => send({ type: "stop" })} />
+        <Header userId={userId} connected={connected} onStop={() => send({ type: "stop" })} onRename={() => setRenaming(true)} />
         <Toolbar />
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -93,6 +101,16 @@ export default function App() {
         </div>
         <ErrorToast />
       </div>
+      {renaming && (
+        <NameDialog
+          initial={name}
+          onCancel={() => setRenaming(false)}
+          onSave={(next) => {
+            setRenaming(false);
+            onRename(next);
+          }}
+        />
+      )}
       {presenting && <Present />}
       <PrintDeck />
     </>
@@ -141,8 +159,7 @@ function Notes({ slideId, notes }: { slideId: string; notes: string }) {
   );
 }
 
-function Header({ connected, onStop }: { connected: boolean; onStop: () => void }) {
-  const users = useDeck((s) => s.users);
+function Header({ userId, connected, onStop, onRename }: { userId: string; connected: boolean; onStop: () => void; onRename: () => void }) {
   const aiStatus = useDeck((s) => s.aiStatus);
   const busy = useDeck(isBusy);
   const [copied, setCopied] = useState(false);
@@ -170,9 +187,7 @@ function Header({ connected, onStop }: { connected: boolean; onStop: () => void 
             <Square className="size-3 fill-current" /> Stop
           </Button>
         )}
-        <span className="hidden items-center gap-1 text-xs text-slate-500 sm:flex">
-          <Users className="size-3.5" /> {users.length}
-        </span>
+        <PresenceStack userId={userId} onRename={onRename} />
         <Button
           size="sm"
           variant="ghost"
@@ -226,7 +241,10 @@ function Transcript({
           const working = busy && i === turns.length - 1;
           return (
             <div key={turn.turnId} className="space-y-1.5">
-              <div className="text-xs text-slate-400">{turn.name ?? "Someone"}</div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Avatar userId={turn.userId} name={turn.name} className="size-4 text-[8px] ring-0" />
+                {turn.userId === userId ? "You" : (turn.name ?? "Someone")}
+              </div>
               <div className={cn("rounded-2xl rounded-tl-sm bg-slate-100 px-3 py-2 text-sm", undone && "text-slate-400 line-through")}>
                 {turn.text}
               </div>
