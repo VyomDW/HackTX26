@@ -224,7 +224,7 @@ export class Room {
 
     this.inflight?.controller.abort();
     const controller = new AbortController();
-    const speaker = name ?? [...this.members].find((m) => m.userId === userId)?.name ?? userId;
+    const speaker = name ?? [...this.members].find((m) => m.userId === userId)?.name ?? "Guest";
     const turn: Turn = { turnId: randomUUID(), userId, name: speaker, text, ts: now };
     this.inflight = { controller, turnId: turn.turnId };
     this.turns.push(turn);
