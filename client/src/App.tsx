@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, Check, Crosshair, Link2, Square, Undo2, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Present, PrintDeck } from "@/components/Present";
+import { MicButton } from "@/components/MicButton";
 import { NewSlideButton, SlideRail } from "@/components/SlideRail";
 import { Stage } from "@/components/Stage";
 import { Toolbar } from "@/components/Toolbar";
@@ -88,7 +89,7 @@ export default function App() {
             )}
           </main>
 
-          <Transcript onPrompt={prompt} onUndo={(turnId) => send({ type: "undo_turn", turnId })} disabled={!connected} />
+          <Transcript userId={userId} onPrompt={prompt} onUndo={(turnId) => send({ type: "undo_turn", turnId })} disabled={!connected} />
         </div>
         <ErrorToast />
       </div>
@@ -189,7 +190,17 @@ function Header({ connected, onStop }: { connected: boolean; onStop: () => void 
   );
 }
 
-function Transcript({ onPrompt, onUndo, disabled }: { onPrompt: (t: string) => void; onUndo: (turnId: string) => void; disabled: boolean }) {
+function Transcript({
+  userId,
+  onPrompt,
+  onUndo,
+  disabled,
+}: {
+  userId: string;
+  onPrompt: (t: string) => void;
+  onUndo: (turnId: string) => void;
+  disabled: boolean;
+}) {
   const turns = useDeck((s) => s.turns);
   const history = useDeck((s) => s.history);
   const busy = useDeck(isBusy);
@@ -256,6 +267,7 @@ function Transcript({ onPrompt, onUndo, disabled }: { onPrompt: (t: string) => v
               }
             }}
           />
+          <MicButton roomId={roomId} userId={userId} />
           <Button type="submit" size="icon" disabled={!text.trim() || disabled} className="size-8 shrink-0 rounded-lg bg-violet-600 hover:bg-violet-700">
             <ArrowUp className="size-4" />
           </Button>

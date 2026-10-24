@@ -116,6 +116,6 @@ test("uploaded images are hidden from the model prompt", async () => {
     ],
     member(room),
   );
-  const prompt = (room as any).buildMessages("hi", "u1").at(-1).content as string;
+  const prompt = (room as any).buildMessages([{ speaker: "u1", text: "hi" }]).at(-1).content as string;
   assert.ok(prompt.includes("(uploaded image)") && !prompt.includes("AAAA"));
 });

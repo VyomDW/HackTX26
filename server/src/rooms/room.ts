@@ -200,11 +200,19 @@ export class Room {
     for (const entry of entries.reverse()) this.undo(entry.envelope.opId, actor);
   }
 
+  /** Cancels the response on purpose, so its unfinished requests are dropped rather than carried into the next prompt. */
   stop() {
+    this.pending = [];
     this.inflight?.controller.abort();
   }
 
-  /** New input cancels any in-flight stream, which gives interruption for free. */
+  /** Requests whose stream hasn't finished yet; an interrupted one is folded into the next prompt. */
+  private pending: { speaker: string; text: string }[] = [];
+
+  /**
+   * New input cancels any in-flight stream (interruption) and re-prompts with every unfinished request,
+   * so when two people talk at once both requests still get done.
+   */
   async prompt(text: string, userId: string, name?: string) {
     const now = Date.now();
     this.recentPrompts = this.recentPrompts.filter((t) => now - t < 60_000);
@@ -214,18 +222,21 @@ export class Room {
     }
     this.recentPrompts.push(now);
 
-    this.stop();
+    this.inflight?.controller.abort();
     const controller = new AbortController();
-    const turn: Turn = { turnId: randomUUID(), userId, name, text, ts: now };
+    const speaker = name ?? [...this.members].find((m) => m.userId === userId)?.name ?? userId;
+    const turn: Turn = { turnId: randomUUID(), userId, name: speaker, text, ts: now };
     this.inflight = { controller, turnId: turn.turnId };
     this.turns.push(turn);
     this.broadcast({ type: "turn", turn });
-    const messages = this.buildMessages(text, userId);
+    this.pending.push({ speaker, text });
+    const requests = [...this.pending];
+    const messages = this.buildMessages(requests);
     // Applied lines are remembered as the AI's reply, which also shows it its own format on later turns.
     // The reply slot is reserved now and filled as ops land, so an interrupting prompt still sees it in order.
     const reply = { role: "assistant" as const, text: "(no changes)" };
     const applied: string[] = [];
-    this.conversation.push({ role: "user", text }, reply);
+    this.conversation.push({ role: "user", text: `${speaker}: ${text}` }, reply);
     this.broadcast({ type: "ai_status", status: "thinking" });
     const meta = { turnId: turn.turnId };
 
@@ -259,6 +270,8 @@ export class Room {
         this.broadcast({ type: "error", message: errorMessage(err) });
       }
     } finally {
+      // Done or failed; either way don't replay these. Aborted ones stay for the prompt that interrupted them.
+      if (!controller.signal.aborted) this.pending = this.pending.filter((r) => !requests.includes(r));
       if (this.inflight?.controller === controller) {
         this.inflight = undefined;
         this.broadcast({ type: "ai_status", status: "idle" });
@@ -275,7 +288,8 @@ export class Room {
   }
 
   /** Built before the new turn is recorded, so history holds only earlier turns. */
-  private buildMessages(text: string, _userId: string): ChatMessage[] {
+  private buildMessages(requests: { speaker: string; text: string }[]): ChatMessage[] {
+    const request = requests.length === 1 ? requests[0]!.text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
     // Uploaded images are inlined as data URLs; they would swamp the prompt and the model can't use them anyway.
     const deck = JSON.stringify(this.deck, (key, value) =>
       key === "url" && typeof value === "string" && value.startsWith("data:") ? "(uploaded image)" : value,
@@ -283,7 +297,7 @@ export class Room {
     return [
       { role: "developer", content: SYSTEM_PROMPT },
       ...this.conversation.slice(-10).map(({ role, text }) => ({ role, content: text })),
-      { role: "user", content: `Current deck:\n${deck}\n\nRequest: ${text}` },
+      { role: "user", content: `Current deck:\n${deck}\n\nRequest: ${request}` },
     ];
   }
 
