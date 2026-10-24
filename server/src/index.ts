@@ -8,7 +8,8 @@ import { getRoom, type Room } from "./rooms/room";
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: env.clientOrigin });
-await app.register(websocket);
+// Uploaded images travel inline as data URLs (downscaled in the browser), so allow larger frames.
+await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
 
@@ -38,8 +39,13 @@ app.register(async (scope) => {
         return;
       }
       if (!room || !member) return;
-      if (msg.type === "prompt") void room.prompt(msg.text, member.userId);
+      if (msg.type === "prompt") void room.prompt(msg.text, member.userId, member.name);
       if (msg.type === "undo") room.undo(msg.opId, member.userId);
+      if (msg.type === "undo_turn") room.undoTurn(msg.turnId, member.userId);
+      if (msg.type === "stop") room.stop();
+      if (msg.type === "ops") room.userOps(msg.ops, member);
+      if (msg.type === "undo_mine") room.undoMine(member.userId);
+      if (msg.type === "redo_mine") room.redoMine(member.userId);
     });
 
     socket.on("close", () => {

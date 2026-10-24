@@ -1,0 +1,21 @@
+{"type":"add_slide","id":"s1","layout":"title"}
+{"type":"set_text","slideId":"s1","elementId":"s1-title","text":"Sustainable Coffee: Brew Better Future"}
+{"type":"set_text","slideId":"s1","elementId":"s1-subtitle","text":"Good for farmers, forests, and your morning cup"}
+{"type":"focus","slideId":"s1"}
+{"type":"add_slide","id":"s2","layout":"bullets","afterId":"s1"}
+{"type":"set_text","slideId":"s2","elementId":"s2-title","text":"The Problem With Conventional Coffee"}
+{"type":"set_text","slideId":"s2","elementId":"s2-body","text":"• Deforestation destroys 130k hectares yearly\n• Farmers earn below living income levels\n• Chemical runoff pollutes local water systems\n• Climate change threatens future coffee supply"}
+{"type":"focus","slideId":"s2"}
+{"type":"add_slide","id":"s3","layout":"image-left","afterId":"s2"}
+{"type":"set_text","slideId":"s3","elementId":"s3-title","text":"Our Shade-Grown Solution"}
+{"type":"set_text","slideId":"s3","elementId":"s3-body","text":"• 100% shade-grown organic Arabica beans\n• Zero deforestation across partner farms\n• Bird-friendly canopy preserves biodiversity"}
+{"type":"add_image","slideId":"s3","elementId":"s3-img","prompt":"lush shade-grown coffee farm under forest canopy"}
+{"type":"focus","slideId":"s3"}
+{"type":"add_slide","id":"s4","layout":"bullets","afterId":"s3"}
+{"type":"set_text","slideId":"s4","elementId":"s4-title","text":"Fair Impact From Bean to Cup"}
+{"type":"set_text","slideId":"s4","elementId":"s4-body","text":"• 2x fair trade pay for farmers\n• 50k farmers empowered across Colombia\n• Compostable packaging cuts waste 90%\n• Carbon-neutral delivery to your door"}
+{"type":"focus","slideId":"s4"}
+{"type":"add_slide","id":"s5","layout":"title","afterId":"s4"}
+{"type":"set_text","slideId":"s5","elementId":"s5-title","text":"Join the Sustainable Sip Movement"}
+{"type":"set_text","slideId":"s5","elementId":"s5-subtitle","text":"Subscribe today and plant a tree monthly"}
+{"type":"focus","slideId":"s5"}

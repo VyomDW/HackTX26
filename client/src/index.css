@@ -46,5 +46,26 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+/* Export PDF: one slide per landscape page, backgrounds included. */
+@page {
+  size: 13.333in 7.5in;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-page {
+    width: 13.333in;
+    height: 7.5in;
+    overflow: hidden;
+    break-after: page;
   }
 }

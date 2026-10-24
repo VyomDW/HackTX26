@@ -1,4 +1,4 @@
-import type { Deck, Element, Slide } from "./deck";
+import { defaultPlacement, type Box, type Deck, type Element, type Slide, type Style, type StylePatch } from "./deck";
 import type { Op } from "./ops";
 
 export class OpError extends Error {}
@@ -13,6 +13,42 @@ const findSlide = (deck: Deck, slideId: string): Slide => {
   const slide = deck.slides.find((s) => s.id === slideId);
   if (!slide) throw new OpError(`unknown slide ${slideId}`);
   return slide;
+};
+
+const findElement = (slide: Slide, elementId: string): Element => {
+  const el = slide.elements.find((e) => e.id === elementId);
+  if (!el) throw new OpError(`unknown element ${elementId}`);
+  return el;
+};
+
+/** Box and style for a new element: explicit values win over the layout default. */
+const place = (slide: Slide, elementId: string, kind: Element["kind"], box?: Box, style?: Style) => {
+  const role = elementId.startsWith(`${slide.id}-`) ? elementId.slice(slide.id.length + 1) : elementId;
+  const d = defaultPlacement(slide.layout, role, kind, slide.elements.length);
+  return { box: box ?? d.box, style: { ...d.style, ...style } };
+};
+
+/** Applies a style patch in place and returns the patch that restores the previous values. */
+const patchStyle = (style: Style, patch: StylePatch): StylePatch => {
+  const prev: Record<string, unknown> = {};
+  const target = style as Record<string, unknown>;
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    prev[key] = target[key] ?? null;
+    if (value === null) delete target[key];
+    else target[key] = value;
+  }
+  return prev as StylePatch;
+};
+
+const patchBox = (box: Box, patch: Partial<Box>): Partial<Box> => {
+  const prev: Partial<Box> = {};
+  for (const key of ["x", "y", "w", "h", "rotate"] as const) {
+    if (patch[key] === undefined) continue;
+    prev[key] = box[key] ?? 0;
+    box[key] = patch[key];
+  }
+  return prev;
 };
 
 /** Pure: returns a new deck plus the inverse ops. Throws OpError when the op cannot apply. */
@@ -30,19 +66,39 @@ export function applyOp(deck: Deck, op: Op): ApplyResult {
     case "set_text": {
       const slide = findSlide(next, op.slideId);
       const existing = slide.elements.find((e) => e.id === op.elementId);
-      if (existing && existing.kind !== "text") throw new OpError(`${op.elementId} is not text`);
-      if (existing) {
-        const prev = existing.text;
-        existing.text = op.text;
-        return { deck: next, inverse: [{ ...op, text: prev }] };
+      if (!existing) {
+        slide.elements.push({ id: op.elementId, kind: "text", text: op.text, ...place(slide, op.elementId, "text", op.box, op.style) });
+        return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
       }
-      slide.elements.push({ id: op.elementId, kind: "text", text: op.text });
-      return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
+      if (existing.kind === "image") throw new OpError(`${op.elementId} is an image`);
+      const inverse: Op[] = [{ type: "set_text", slideId: op.slideId, elementId: op.elementId, text: existing.text ?? "" }];
+      existing.text = op.text;
+      if (op.box) inverse.push({ type: "set_box", slideId: op.slideId, elementId: op.elementId, ...patchBox(existing.box, op.box) });
+      if (op.style) inverse.push({ type: "set_style", slideId: op.slideId, elementId: op.elementId, style: patchStyle(existing.style, op.style) });
+      return { deck: next, inverse };
     }
     case "add_image": {
       const slide = findSlide(next, op.slideId);
       if (slide.elements.some((e) => e.id === op.elementId)) throw new OpError(`element ${op.elementId} exists`);
-      slide.elements.push({ id: op.elementId, kind: "image", prompt: op.prompt });
+      slide.elements.push({
+        id: op.elementId,
+        kind: "image",
+        prompt: op.prompt,
+        ...(op.url ? { url: op.url } : {}),
+        ...place(slide, op.elementId, "image", op.box, op.style),
+      });
+      return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
+    }
+    case "add_shape": {
+      const slide = findSlide(next, op.slideId);
+      if (slide.elements.some((e) => e.id === op.elementId)) throw new OpError(`element ${op.elementId} exists`);
+      slide.elements.push({
+        id: op.elementId,
+        kind: "shape",
+        shape: op.shape,
+        ...(op.text !== undefined ? { text: op.text } : {}),
+        ...place(slide, op.elementId, "shape", op.box, op.style),
+      });
       return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
     }
     case "set_image_url": {
@@ -51,6 +107,51 @@ export function applyOp(deck: Deck, op: Op): ApplyResult {
       el.url = op.url;
       // Image arrival is not user-undoable on its own; undoing add_image removes it.
       return { deck: next, inverse: [{ type: "noop" }] };
+    }
+    case "set_box": {
+      const el = findElement(findSlide(next, op.slideId), op.elementId);
+      const { type: _t, slideId, elementId, ...patch } = op;
+      const prev = patchBox(el.box, patch);
+      return { deck: next, inverse: [{ type: "set_box", slideId, elementId, ...prev }] };
+    }
+    case "set_style": {
+      const el = findElement(findSlide(next, op.slideId), op.elementId);
+      const prev = patchStyle(el.style, op.style);
+      return { deck: next, inverse: [{ ...op, style: prev }] };
+    }
+    case "reorder_element": {
+      const slide = findSlide(next, op.slideId);
+      const from = slide.elements.findIndex((e) => e.id === op.elementId);
+      if (from < 0) throw new OpError(`unknown element ${op.elementId}`);
+      const [el] = slide.elements.splice(from, 1) as [Element];
+      slide.elements.splice(Math.min(op.toIndex, slide.elements.length), 0, el);
+      return { deck: next, inverse: [{ ...op, toIndex: from }] };
+    }
+    case "set_slide": {
+      const slide = findSlide(next, op.slideId);
+      const inverse: Op = { type: "set_slide", slideId: op.slideId };
+      for (const key of ["background", "notes"] as const) {
+        const value = op[key];
+        if (value === undefined) continue;
+        inverse[key] = slide[key] ?? null;
+        if (value === null) delete slide[key];
+        else slide[key] = value;
+      }
+      return { deck: next, inverse: [inverse] };
+    }
+    case "duplicate_slide": {
+      const index = next.slides.findIndex((s) => s.id === op.slideId);
+      if (index < 0) throw new OpError(`unknown slide ${op.slideId}`);
+      if (next.slides.some((s) => s.id === op.newId)) throw new OpError(`slide ${op.newId} exists`);
+      const copy = structuredClone(next.slides[index]!);
+      copy.id = op.newId;
+      // Keep the "<slideId>-<role>" convention so the copy can be edited by role too.
+      for (const el of copy.elements) {
+        if (el.id.startsWith(`${op.slideId}-`)) el.id = `${op.newId}-${el.id.slice(op.slideId.length + 1)}`;
+      }
+      for (const c of copy.citations) c.id = `${op.newId}-${c.id}`;
+      next.slides.splice(index + 1, 0, copy);
+      return { deck: next, inverse: [{ type: "delete_slide", slideId: op.newId }] };
     }
     case "add_citation": {
       const slide = findSlide(next, op.slideId);
@@ -74,6 +175,7 @@ export function applyOp(deck: Deck, op: Op): ApplyResult {
     }
     case "insert_element": {
       const slide = findSlide(next, op.slideId);
+      if (slide.elements.some((e) => e.id === op.element.id)) throw new OpError(`element ${op.element.id} exists`);
       slide.elements.splice(op.index, 0, op.element);
       return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.element.id }] };
     }
@@ -84,6 +186,7 @@ export function applyOp(deck: Deck, op: Op): ApplyResult {
       return { deck: next, inverse: [{ type: "insert_slide", slide, index }] };
     }
     case "insert_slide": {
+      if (next.slides.some((s) => s.id === op.slide.id)) throw new OpError(`slide ${op.slide.id} exists`);
       next.slides.splice(op.index, 0, op.slide);
       return { deck: next, inverse: [{ type: "delete_slide", slideId: op.slide.id }] };
     }

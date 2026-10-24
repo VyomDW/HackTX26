@@ -1,61 +1,312 @@
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowUp, Check, Crosshair, Link2, Square, Undo2, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SlideView } from "@/components/SlideView";
+import { Present, PrintDeck } from "@/components/Present";
+import { NewSlideButton, SlideRail } from "@/components/SlideRail";
+import { Stage } from "@/components/Stage";
+import { Toolbar } from "@/components/Toolbar";
+import { useShortcuts } from "@/lib/shortcuts";
 import { useRoomSocket } from "@/lib/socket";
-import { useDeck } from "@/store/deck";
+import { cn } from "@/lib/utils";
+import { isBusy, turnSummary, useDeck } from "@/store/deck";
+import { commit, useEditor } from "@/store/editor";
 
 const roomId = new URLSearchParams(location.search).get("room") ?? "demo";
 
+const SUGGESTIONS = [
+  "Make a pitch about sustainable coffee",
+  "Explain how solar panels work in 4 slides",
+  "Plan a team offsite agenda",
+];
+
 export default function App() {
   const userId = useMemo(() => `u-${Math.random().toString(36).slice(2, 8)}`, []);
-  const send = useRoomSocket(roomId, userId);
-  const { deck, history, users, aiStatus } = useDeck();
-  const [text, setText] = useState("");
+  const name = useMemo(() => `Guest ${userId.slice(-3).toUpperCase()}`, [userId]);
+  const { send, connected } = useRoomSocket(roomId, userId, name);
+  const deck = useDeck((s) => s.deck);
+  const focus = useDeck((s) => s.focus);
+  const { slideId, follow, presenting } = useEditor();
+  useShortcuts();
 
-  const undone = new Set(history.map((h) => h.undoes).filter(Boolean));
-  const lastAiOp = [...history]
-    .reverse()
-    .find((h) => h.actor === "ai" && !h.undoes && !undone.has(h.opId) && h.op.type !== "focus" && h.op.type !== "set_image_url");
+  useEffect(() => useEditor.setState({ send }), [send]);
+
+  // Follow mode keeps the stage on whatever slide the AI is touching.
+  useEffect(() => {
+    if (follow && focus?.slideId && focus.slideId !== useEditor.getState().slideId) useEditor.getState().setSlide(focus.slideId, true);
+  }, [follow, focus?.slideId]);
+
+  const current = deck.slides.find((s) => s.id === slideId) ?? deck.slides[0];
+  const currentIndex = current ? deck.slides.indexOf(current) : -1;
+
+  const prompt = (text: string) => {
+    send({ type: "prompt", text });
+    useEditor.setState({ follow: true });
+  };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-4 p-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Room {roomId}</h1>
-        <span className="text-sm text-muted-foreground">
-          {users.length} online · AI {aiStatus}
-        </span>
-      </header>
+    <>
+      <div className="flex h-dvh flex-col bg-slate-100 text-slate-900 print:hidden">
+        <Header connected={connected} onStop={() => send({ type: "stop" })} />
+        <Toolbar />
 
-      <main className="flex flex-1 flex-col gap-4">
-        {deck.slides.length === 0 && (
-          <p className="text-muted-foreground">No slides yet. Ask the AI for something.</p>
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <SlideRail />
+
+          <main className="order-1 flex min-h-0 min-w-0 flex-1 flex-col lg:order-none">
+            {current ? (
+              <>
+                <StageArea>
+                  <Stage slide={current} />
+                </StageArea>
+                <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2 text-sm text-slate-500 lg:px-8">
+                  <span className="tabular-nums">
+                    Slide {currentIndex + 1} of {deck.slides.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div className="lg:hidden">
+                      <NewSlideButton />
+                    </div>
+                    <button
+                      onClick={() => useEditor.setState((s) => ({ follow: !s.follow }))}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition",
+                        follow ? "bg-violet-100 text-violet-700" : "text-slate-500 hover:bg-slate-200",
+                      )}
+                    >
+                      <Crosshair className="size-3.5" />
+                      {follow ? "Following Muse" : "Follow Muse"}
+                    </button>
+                  </div>
+                </div>
+                <Notes key={current.id} slideId={current.id} notes={current.notes ?? ""} />
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center p-4">
+                <EmptyState onPick={prompt} />
+              </div>
+            )}
+          </main>
+
+          <Transcript onPrompt={prompt} onUndo={(turnId) => send({ type: "undo_turn", turnId })} disabled={!connected} />
+        </div>
+        <ErrorToast />
+      </div>
+      {presenting && <Present />}
+      <PrintDeck />
+    </>
+  );
+}
+
+/** Sizes the stage to the largest 16:9 box that fits the available space. */
+function StageArea({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number>();
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width: w, height: h } = entry!.contentRect;
+      setWidth(Math.max(200, Math.min(w, (h * 16) / 9)));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="flex min-h-[220px] flex-1 items-center justify-center p-4 lg:p-8"
+      onPointerDown={(e) => e.target === e.currentTarget && useEditor.getState().select(undefined)}
+    >
+      <div style={{ width }}>{children}</div>
+    </div>
+  );
+}
+
+function Notes({ slideId, notes }: { slideId: string; notes: string }) {
+  const [text, setText] = useState(notes);
+  useEffect(() => setText(notes), [notes]);
+  return (
+    <textarea
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => text !== notes && commit({ type: "set_slide", slideId, notes: text || null })}
+      placeholder="Click to add speaker notes"
+      rows={2}
+      className="mx-4 mb-3 shrink-0 resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-violet-400 lg:mx-8"
+    />
+  );
+}
+
+function Header({ connected, onStop }: { connected: boolean; onStop: () => void }) {
+  const users = useDeck((s) => s.users);
+  const aiStatus = useDeck((s) => s.aiStatus);
+  const busy = useDeck(isBusy);
+  const [copied, setCopied] = useState(false);
+
+  const label = !connected ? "Reconnecting…" : aiStatus === "thinking" ? "Thinking…" : busy ? "Editing…" : "Ready";
+
+  return (
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="grid size-7 place-items-center rounded-lg bg-violet-600 text-sm font-bold text-white">M</div>
+        <span className="truncate font-semibold">Room {roomId}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium",
+            !connected ? "bg-amber-100 text-amber-800" : busy ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600",
+          )}
+        >
+          <span className={cn("size-2 rounded-full", !connected ? "bg-amber-500" : busy ? "animate-pulse bg-violet-500" : "bg-emerald-500")} />
+          {label}
+        </div>
+        {busy && connected && (
+          <Button size="sm" variant="outline" onClick={onStop} className="gap-1.5">
+            <Square className="size-3 fill-current" /> Stop
+          </Button>
         )}
-        {deck.slides.map((slide) => (
-          <SlideView key={slide.id} slide={slide} />
-        ))}
-      </main>
+        <span className="hidden items-center gap-1 text-xs text-slate-500 sm:flex">
+          <Users className="size-3.5" /> {users.length}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            void navigator.clipboard?.writeText(`${location.origin}${location.pathname}?room=${roomId}`);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
+          <span className="hidden sm:inline">{copied ? "Copied" : "Invite"}</span>
+        </Button>
+      </div>
+    </header>
+  );
+}
 
+function Transcript({ onPrompt, onUndo, disabled }: { onPrompt: (t: string) => void; onUndo: (turnId: string) => void; disabled: boolean }) {
+  const turns = useDeck((s) => s.turns);
+  const history = useDeck((s) => s.history);
+  const busy = useDeck(isBusy);
+  const [text, setText] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [turns.length, history.length]);
+
+  const submit = () => {
+    if (!text.trim() || disabled) return;
+    onPrompt(text.trim());
+    setText("");
+  };
+
+  return (
+    <aside className="order-3 flex max-h-[45dvh] shrink-0 flex-col border-t border-slate-200 bg-white lg:max-h-none lg:w-80 lg:border-l lg:border-t-0">
+      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+        {turns.length === 0 && <p className="text-sm text-slate-400">Your requests and Muse's edits show up here.</p>}
+        {turns.map((turn, i) => {
+          const { edits, undone } = turnSummary(history, turn.turnId);
+          const working = busy && i === turns.length - 1;
+          return (
+            <div key={turn.turnId} className="space-y-1.5">
+              <div className="text-xs text-slate-400">{turn.name ?? "Someone"}</div>
+              <div className={cn("rounded-2xl rounded-tl-sm bg-slate-100 px-3 py-2 text-sm", undone && "text-slate-400 line-through")}>
+                {turn.text}
+              </div>
+              <div className="flex items-center justify-between pl-1 text-xs">
+                <span className={cn("flex items-center gap-1.5", working ? "text-violet-600" : "text-slate-500")}>
+                  {working && <span className="size-1.5 animate-pulse rounded-full bg-violet-500" />}
+                  {undone ? "Undone" : working ? `Muse is editing · ${edits} edits` : edits ? `Muse made ${edits} edits` : "No changes"}
+                </span>
+                {edits > 0 && !undone && (
+                  <button onClick={() => onUndo(turn.turnId)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900">
+                    <Undo2 className="size-3" /> Undo
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <form
-        className="sticky bottom-4 flex gap-2 rounded-lg border bg-background p-2 shadow"
+        className="border-t border-slate-200 p-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!text.trim()) return;
-          send({ type: "prompt", text });
-          setText("");
+          submit();
         }}
       >
-        <input
-          className="flex-1 bg-transparent px-2 outline-none"
-          placeholder="Make a pitch about sustainable coffee…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        {/* TODO(C): push-to-talk MediaRecorder button */}
-        <Button type="button" variant="outline" disabled={!lastAiOp} onClick={() => lastAiOp && send({ type: "undo", opId: lastAiOp.opId })}>
-          Undo
-        </Button>
-        <Button type="submit">Send</Button>
+        <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100">
+          <textarea
+            rows={2}
+            maxLength={2000}
+            className="flex-1 resize-none bg-transparent px-1 text-sm outline-none placeholder:text-slate-400"
+            placeholder={busy ? "Interrupt with a new request…" : "Ask Muse to build or change slides…"}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <Button type="submit" size="icon" disabled={!text.trim() || disabled} className="size-8 shrink-0 rounded-lg bg-violet-600 hover:bg-violet-700">
+            <ArrowUp className="size-4" />
+          </Button>
+        </div>
       </form>
+    </aside>
+  );
+}
+
+function EmptyState({ onPick }: { onPick: (t: string) => void }) {
+  return (
+    <div className="flex max-w-md flex-col items-center gap-4 text-center">
+      <h2 className="text-2xl font-bold tracking-tight">What are we presenting?</h2>
+      <p className="text-sm text-slate-500">Ask Muse for a deck and watch it build live. Everyone in this room sees the same slides.</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        {SUGGESTIONS.map((s) => (
+          <button key={s} onClick={() => onPick(s)} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm transition hover:border-violet-400 hover:text-violet-700">
+            {s}
+          </button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function ErrorToast() {
+  const error = useDeck((s) => s.error);
+  const setError = useDeck((s) => s.setError);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(undefined), 6000);
+    return () => clearTimeout(t);
+  }, [error, setError]);
+
+  return (
+    <AnimatePresence>
+      {error && (
+        <motion.div
+          key={error.at}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
+          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg"
+        >
+          {error.message}
+          <button onClick={() => setError(undefined)} className="text-slate-400 hover:text-white">
+            <X className="size-4" />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
