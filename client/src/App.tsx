@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { MicButton } from "@/components/MicButton";
 import { SlideView } from "@/components/SlideView";
 import { useRoomSocket } from "@/lib/socket";
 import { useDeck } from "@/store/deck";
@@ -50,7 +51,7 @@ export default function App() {
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        {/* TODO(C): push-to-talk MediaRecorder button */}
+        <MicButton roomId={roomId} userId={userId} />
         <Button type="button" variant="outline" disabled={!lastAiOp} onClick={() => lastAiOp && send({ type: "undo", opId: lastAiOp.opId })}>
           Undo
         </Button>
