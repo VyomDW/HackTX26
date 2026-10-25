@@ -10,6 +10,9 @@ export default defineConfig({
     host: true,
     port: 5173,
     // Same-origin HTTP to the server, so phones on the LAN avoid CORS (used by voice uploads).
-    proxy: { "/api": { target: "http://localhost:8787", rewrite: (p) => p.replace(/^\/api/, "") } },
+    proxy: {
+      "/api": { target: "http://localhost:8787", rewrite: (p) => p.replace(/^\/api/, "") },
+      "/generated": { target: "http://localhost:8787" },
+    },
   },
 });

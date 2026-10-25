@@ -76,7 +76,7 @@ export const ImageElement = z.object({
   ...base,
   kind: z.literal("image"),
   prompt: z.string(),
-  /** Undefined while Muse Image is still generating. */
+  /** Undefined while the server searches for and saves a sourced image. */
   url: z.string().optional(),
 });
 
@@ -123,6 +123,15 @@ export function defaultPlacement(
   kind: Element["kind"],
   existing: number,
 ): { box: Box; style: Style } {
+  // Keep a cover image in the bottom-right corner, clear of the centered title/subtitle.
+  // A generic centered fallback used to place it directly over the cover text.
+  if (kind === "image" && layout === "title") {
+    return {
+      box: { x: 900, y: 500, w: 340, h: 190 },
+      style: { fontFamily: FONT, color: INK, radius: 12, fit: "cover" },
+    };
+  }
+
   const key = `${layout}:${role}`;
   const presets: Record<string, { box: Box; style: Style }> = {
     "title:title": { box: { x: 120, y: 230, w: 1040, h: 140 }, style: { fontSize: 60, bold: true, align: "center", valign: "bottom" } },

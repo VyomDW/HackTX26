@@ -7,7 +7,7 @@ Live co-editing AI presentation tool: talk or type, and an AI collaborator edits
 | Path | What lives there | Owner |
 | --- | --- | --- |
 | `shared/` | Zod deck types, operation schema, `applyOp` (with inverses for undo), WebSocket message types. The contract between client and server. | A + B |
-| `server/` | Fastify + WebSocket rooms, NDJSON stream parsing, `callMuse()`, `transcribe()`, `generateImage()`, `search()` | B, C |
+| `server/` | Fastify + WebSocket rooms, NDJSON stream parsing, `callMuse()`, `transcribe()`, SerpApi text and image search | B, C |
 | `client/` | React + Vite + Tailwind + shadcn/ui, Zustand deck store, slide renderer | A, C |
 
 ## Run locally
@@ -32,5 +32,6 @@ Add shadcn components with `npx shadcn@latest add <component>` from `client/`.
 ## Open TODOs from the design doc
 
 - B: real Muse Spark transport in `server/src/integrations/muse.ts`; system prompt in `Room.buildPrompt`
-- C: `transcribe()`, `generateImage()` (emit `set_image_url` when done), push-to-talk in the client
+- C: SerpApi image search saves a real image thumbnail locally, updates the placeholder, and attaches its source as a slide footnote
+- C: text and image search results are cached locally for reuse
 - A: queue incoming ops with a delay, AI cursor, per-op undo UI

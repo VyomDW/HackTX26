@@ -46,8 +46,12 @@ export const toggleBullets = (text: string) => {
   return lines.map((l) => (on ? l.replace(/^• /, "") : l.trim() ? `• ${l}` : l)).join("\n");
 };
 
-/** Reads an image file into a data URL, downscaling large photos so they fit through the socket comfortably. */
+const MAX_UPLOAD_SOURCE_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_DATA_URL_CHARS = 8 * 1024 * 1024;
+
+/** Reads and compresses images so the base64 payload stays comfortably below the WebSocket limit. */
 export async function fileToDataUrl(file: File, maxDim = 1600): Promise<{ url: string; width: number; height: number }> {
+  if (file.size > MAX_UPLOAD_SOURCE_BYTES) throw new Error("Image file is over the 100 MB upload limit.");
   const original = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
@@ -62,14 +66,35 @@ export async function fileToDataUrl(file: File, maxDim = 1600): Promise<{ url: s
   });
   const { naturalWidth: w, naturalHeight: h } = img;
   const scale = Math.min(1, maxDim / Math.max(w, h));
-  // Keep small files and animated GIFs as they are.
-  if ((scale === 1 && file.size < 1_500_000) || file.type === "image/gif") return { url: original, width: w, height: h };
+  // Small files and modest GIFs can keep their original encoding and animation.
+  if ((scale === 1 && file.size < 1_500_000) || (file.type === "image/gif" && file.size <= 6_000_000)) {
+    return { url: original, width: w, height: h };
+  }
+
+  let width = Math.max(1, Math.round(w * scale));
+  let height = Math.max(1, Math.round(h * scale));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(w * scale);
-  canvas.height = Math.round(h * scale);
-  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const type = file.type === "image/png" ? "image/png" : "image/jpeg";
-  return { url: canvas.toDataURL(type, 0.85), width: canvas.width, height: canvas.height };
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Your browser couldn't prepare this image.");
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    canvas.width = width;
+    canvas.height = height;
+    context.clearRect(0, 0, width, height);
+    context.drawImage(img, 0, 0, width, height);
+
+    // WebP is compact and retains transparent backgrounds. PNG is the fallback for
+    // browsers without WebP canvas encoding; its dimensions shrink until it fits.
+    const encoded = canvas.toDataURL("image/webp", Math.max(0.58, 0.88 - attempt * 0.045));
+    const url = encoded.startsWith("data:image/webp,")
+      ? encoded
+      : canvas.toDataURL(file.type === "image/png" ? "image/png" : "image/jpeg", 0.78);
+    if (url.length <= MAX_UPLOAD_DATA_URL_CHARS) return { url, width, height };
+
+    width = Math.max(1, Math.floor(width * 0.82));
+    height = Math.max(1, Math.floor(height * 0.82));
+  }
+  throw new Error("This image couldn't be compressed enough to upload. Try a smaller image.");
 }
 
 /** Fits an image of the given size into the canvas, centred on a point. */

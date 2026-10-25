@@ -14,6 +14,8 @@ import {
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
 import { callMuse, type ChatMessage } from "../integrations/muse";
+import { findSourcedImage } from "../integrations/image";
+import { search, type SearchResult } from "../integrations/search";
 import { lines } from "../ndjson";
 
 /** Standing instructions sent to Muse Spark as a developer message on every turn. */
@@ -43,6 +45,9 @@ Design:
 {"type":"set_box","slideId":"s3","elementId":"s3-title","x":80,"y":40,"w":800,"h":120,"rotate":0}   move/resize/rotate; give only the fields that change.
 {"type":"set_style","slideId":"s3","elementId":"s3-title","style":{"color":"#7c3aed","bold":true}}   give only the properties that change; null resets one.
 {"type":"reorder_element","slideId":"s3","elementId":"s3-badge","toIndex":0}   0 = send to back.
+Sources:
+{"type":"add_citation","slideId":"s3","source":"Exact result title","url":"https://example.com/source"}   cite only an exact title and URL from SEARCH SOURCES.
+{"type":"remove_citation","slideId":"s3","citationId":"s3-c1"}   removes an outdated citation from the slide.
 View:
 {"type":"focus","slideId":"s3","elementId":"s3-title"}   moves the user's view; elementId optional.
 
@@ -67,9 +72,11 @@ RULES
 3. Emit add_slide before any operation on that slide. Finish one slide before starting the next, and end each slide with a focus on it.
 4. Body text: 3 to 5 bullets, each starting with "• ", separated by \\n, each under 12 words. Titles under 60 characters.
 5. For a new presentation, build 4 to 6 slides, starting with a title slide. Rely on layout defaults; add design touches only when they help.
+   If you add an image to a title-layout cover, keep it clear of the title and subtitle; use box {"x":900,"y":500,"w":340,"h":190}.
 6. For an edit request, change only what was asked. Do not rebuild the deck. For "move", "bigger", "color", "font" style requests use set_box and set_style.
 7. Keep everything inside the 1280x720 canvas, keep text readable (fontSize 18 or more) and keep enough contrast with the slide background.
-8. Never emit add_citation or set_image_url; the server handles sources and image generation.
+8. Cite factual claims using add_citation with an exact title and URL from SEARCH SOURCES. Do not invent citations or emit set_image_url; the server finds and attributes images. Image prompts must preserve any named team, school, venue, person, or place from the user's request, and describe a verifiable real-world image of that exact subject.
+9. When a request changes the subject, place, team, or focus of an existing slide, update its main image to match: emit add_image using the existing image's elementId and a precise prompt for the new subject. The server replaces that image and clears its old citations. Then add current citations from this turn's SEARCH SOURCES. Keep images and citations when the request is only a cosmetic edit or the subject has not changed.
 9. If the request is unclear, make a sensible choice rather than asking.`;
 
 const PROMPTS_PER_MINUTE = 20;
@@ -231,13 +238,27 @@ export class Room {
     this.broadcast({ type: "turn", turn });
     this.pending.push({ speaker, text });
     const requests = [...this.pending];
-    const messages = this.buildMessages(requests);
+    this.broadcast({ type: "ai_status", status: "thinking" });
+    let sources: SearchResult[] = [];
+    // Ground each AI turn in SerpApi results. Search failures must not prevent ordinary editing.
+    try {
+      sources = await search(requests.map((r) => r.text).join("\n"));
+    } catch (err) {
+      console.warn(`[room ${this.id}] search unavailable`, err instanceof Error ? err.message : err);
+    }
+    if (controller.signal.aborted) {
+      if (this.inflight?.controller === controller) {
+        this.inflight = undefined;
+        this.broadcast({ type: "ai_status", status: "idle" });
+      }
+      return;
+    }
+    const messages = this.buildMessages(requests, sources);
     // Applied lines are remembered as the AI's reply, which also shows it its own format on later turns.
     // The reply slot is reserved now and filled as ops land, so an interrupting prompt still sees it in order.
     const reply = { role: "assistant" as const, text: "(no changes)" };
     const applied: string[] = [];
     this.conversation.push({ role: "user", text: `${speaker}: ${text}` }, reply);
-    this.broadcast({ type: "ai_status", status: "thinking" });
     const meta = { turnId: turn.turnId };
 
     try {
@@ -256,12 +277,38 @@ export class Room {
           console.warn(`[room ${this.id}] invalid op`, line);
           continue;
         }
+        if (op.data.type === "add_citation") {
+          const citation = op.data;
+          const match = sources.find((source) => source.url === citation.url && source.title === citation.source);
+          if (!match) {
+            console.warn(`[room ${this.id}] dropped citation not found in SerpApi results`, op.data);
+            continue;
+          }
+        }
+        // A follow-up topic change often asks Muse to reuse the slide's existing image id.
+        // Replace that image first so add_image can proceed and trigger a fresh sourced lookup.
+        if (op.data.type === "add_image" && !op.data.url) {
+          const imageOp = op.data;
+          const slide = this.deck.slides.find((s) => s.id === imageOp.slideId);
+          // Model-supplied boxes can overlap cover text too, so enforce a safe cover placement here.
+          if (slide?.layout === "title") imageOp.box = { x: 900, y: 500, w: 340, h: 190 };
+          const existing = slide?.elements.find((element) => element.id === imageOp.elementId);
+          if (existing?.kind === "image") {
+            this.apply({ type: "delete_element", slideId: imageOp.slideId, elementId: imageOp.elementId }, "ai", meta);
+            for (const citation of [...(slide?.citations ?? [])]) {
+              this.apply({ type: "remove_citation", slideId: imageOp.slideId, citationId: citation.id }, "ai", meta);
+            }
+          }
+        }
         // A dropped add_slide would otherwise sink every later edit to that slide, so recreate it on demand.
         const missing = this.missingSlide(op.data);
         if (missing && this.apply(missing, "ai", meta)) applied.push(JSON.stringify(missing));
         if (this.apply(op.data, "ai", meta)) {
-          applied.push(line);
+          applied.push(op.data.type === "add_image" ? JSON.stringify(op.data) : line);
           reply.text = applied.join("\n");
+          if (op.data.type === "add_image" && !op.data.url) {
+            void this.findAndBroadcastImage(op.data.slideId, op.data.elementId, op.data.prompt, meta, requests.map((r) => r.text).join("\n"));
+          }
         }
       }
     } catch (err) {
@@ -288,7 +335,38 @@ export class Room {
   }
 
   /** Built before the new turn is recorded, so history holds only earlier turns. */
-  private buildMessages(requests: { speaker: string; text: string }[]): ChatMessage[] {
+  private async findAndBroadcastImage(slideId: string, elementId: string, prompt: string, meta: { turnId: string }, context: string) {
+    try {
+      let image: Awaited<ReturnType<typeof findSourcedImage>> | undefined;
+      let failure: unknown;
+      // The image integration retries SerpApi once itself. If both attempts time out,
+      // retry the complete lookup once so a transient slow response doesn't strand the placeholder.
+      for (let attempt = 0; attempt < 2 && !image; attempt++) {
+        try {
+          image = await findSourcedImage(prompt, context);
+        } catch (err) {
+          failure = err;
+          const timedOut = err instanceof Error && err.message.toLocaleLowerCase().includes("timed out");
+          if (!timedOut || attempt === 1) throw err;
+          await new Promise((resolve) => setTimeout(resolve, 700));
+        }
+      }
+      if (!image) throw failure ?? new Error("Image search did not return an image.");
+      this.apply({ type: "set_image_url", slideId, elementId, url: image.url }, "ai", meta);
+      this.apply({ type: "add_citation", slideId, source: image.title, url: image.sourceUrl }, "ai", meta);
+    } catch (err) {
+      console.error(`[room ${this.id}] sourced image lookup failed`, err);
+      const detail = err instanceof Error ? err.message : String(err);
+      const message = detail.includes("timed out")
+        ? "Image search timed out. Try again; the placeholder remains on the slide."
+        : detail.includes("too small") || detail.includes("no usable image result") || detail.includes("could not be saved")
+          ? "Couldn't find a downloadable, high-resolution image match. The placeholder remains on the slide."
+          : "Sourced image lookup failed. Check SERPAPI_KEY and Terminal for details; the placeholder remains on the slide.";
+      this.broadcast({ type: "error", message });
+    }
+  }
+
+  private buildMessages(requests: { speaker: string; text: string }[], sources: SearchResult[]): ChatMessage[] {
     const request = requests.length === 1 ? requests[0]!.text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
     // Uploaded images are inlined as data URLs; they would swamp the prompt and the model can't use them anyway.
     const deck = JSON.stringify(this.deck, (key, value) =>
@@ -297,7 +375,10 @@ export class Room {
     return [
       { role: "developer", content: SYSTEM_PROMPT },
       ...this.conversation.slice(-10).map(({ role, text }) => ({ role, content: text })),
-      { role: "user", content: `Current deck:\n${deck}\n\nRequest: ${request}` },
+      {
+        role: "user",
+        content: `Current deck:\n${deck}\n\nSEARCH SOURCES (use only these for factual claims; cite with add_citation):\n${JSON.stringify(sources)}\n\nRequest: ${request}`,
+      },
     ];
   }
 

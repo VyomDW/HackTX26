@@ -1,18 +1,34 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
 import { getRoom, type Room } from "./rooms/room";
 import { transcribe } from "./integrations/voice";
 
 const app = Fastify({ logger: true });
+const generatedImageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data/generated");
 
 await app.register(cors, { origin: env.clientOrigin });
 // Uploaded images travel inline as data URLs (downscaled in the browser), so allow larger frames.
 await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
+
+/** Locally saved, SerpApi-discovered image assets; filenames are restricted to cache-generated names. */
+app.get<{ Params: { filename: string } }>("/generated/:filename", async (req, reply) => {
+  if (!/^[a-f0-9]{64}\.(webp|png|jpg)$/.test(req.params.filename)) return reply.code(404).send({ error: "not found" });
+  try {
+    const image = await readFile(path.join(generatedImageDir, req.params.filename));
+    const contentType = req.params.filename.endsWith(".png") ? "image/png" : req.params.filename.endsWith(".jpg") ? "image/jpeg" : "image/webp";
+    return reply.type(contentType).header("Cache-Control", "public, max-age=31536000, immutable").send(image);
+  } catch {
+    return reply.code(404).send({ error: "not found" });
+  }
+});
 
 app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 * 1024 }, (_req, body, done) => done(null, body));
 

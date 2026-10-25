@@ -68,8 +68,9 @@ export async function insertImages(files: Iterable<File>, center?: { x: number; 
       commit({ type: "add_image", slideId: slide.id, elementId: id, prompt: file.name || "Uploaded image", url, box: imageBox(width, height, center) });
       useEditor.getState().select(id);
       center = center && { x: center.x + 30, y: center.y + 30 };
-    } catch {
-      useDeck.getState().setError(`Couldn't read ${file.name || "that image"}.`);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "the image format may not be supported";
+      useDeck.getState().setError(`Couldn't upload ${file.name || "that image"}: ${reason}`);
     }
   }
 }

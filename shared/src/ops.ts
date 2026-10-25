@@ -87,6 +87,11 @@ export const AddCitation = z.object({
   url: z.string(),
   id: z.string().optional(),
 });
+export const RemoveCitation = z.object({
+  type: z.literal("remove_citation"),
+  slideId: z.string(),
+  citationId: z.string(),
+});
 export const DeleteElement = z.object({
   type: z.literal("delete_element"),
   slideId: z.string(),
@@ -120,6 +125,7 @@ export const ModelOp = z.discriminatedUnion("type", [
   SetSlide,
   DuplicateSlide,
   AddCitation,
+  RemoveCitation,
   DeleteElement,
   DeleteSlide,
   ReorderSlide,
@@ -139,11 +145,6 @@ export const InsertElement = z.object({
   element: Element,
   index: z.number().int().min(0),
 });
-export const RemoveCitation = z.object({
-  type: z.literal("remove_citation"),
-  slideId: z.string(),
-  citationId: z.string(),
-});
 export const Noop = z.object({ type: z.literal("noop") });
 
 /** What the editor may send directly: everything the model can do, plus pasting a whole element. */
@@ -154,7 +155,6 @@ export const Op = z.discriminatedUnion("type", [
   ...ModelOp.options,
   InsertSlide,
   InsertElement,
-  RemoveCitation,
   Noop,
 ]);
 export type Op = z.infer<typeof Op>;
