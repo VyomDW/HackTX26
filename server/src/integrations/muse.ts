@@ -54,6 +54,8 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
               ...(instructions ? { instructions } : {}),
               input,
               stream: true,
+              // Reasoning delays the first token; minimal keeps the live build feeling instant.
+              reasoning: { effort: "minimal" },
             },
             { signal },
           );
