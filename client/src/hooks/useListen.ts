@@ -5,10 +5,16 @@ import { useVoice } from "@/store/voice";
 const apiUrl = import.meta.env.VITE_API_URL || "/api";
 const TARGET_RATE = 16000;
 /** Silence this long ends an utterance. */
-const HANGOVER_MS = 900;
+const HANGOVER_MS = 700;
+/** Once someone has talked this long, a breath between phrases is enough to send what they said so far. */
+const LONG_MS = 2500;
+const SHORT_PAUSE_MS = 250;
 const MIN_SPEECH_MS = 400;
-/** Long monologues are cut so captions and edits keep up. */
-const MAX_UTTERANCE_MS = 12_000;
+/**
+ * Nonstop talk is cut at this length regardless, so edits keep landing while the conversation goes on.
+ * A request split across two cuts is still understood: the server judges new lines with the earlier ones as context.
+ */
+const MAX_UTTERANCE_MS = 5000;
 const PREROLL_MS = 300;
 
 const workletUrl = URL.createObjectURL(
@@ -51,7 +57,7 @@ function segmenter(ctx: AudioContext, onUtterance: (samples: Float32Array) => vo
     voiced = silent = 0;
   };
 
-  return (data: Float32Array) => {
+  const feed = (data: Float32Array) => {
     if (paused()) {
       speech = null;
       return;
@@ -73,8 +79,11 @@ function segmenter(ctx: AudioContext, onUtterance: (samples: Float32Array) => vo
     speech.push(data);
     if (loud) (voiced++, (silent = 0));
     else silent++;
-    if (silent * block * 1000 >= HANGOVER_MS || speech.length * block * 1000 >= MAX_UTTERANCE_MS) flush();
+    const ms = speech.length * block * 1000;
+    const pause = silent * block * 1000;
+    if (pause >= HANGOVER_MS || (ms >= LONG_MS && pause >= SHORT_PAUSE_MS) || ms >= MAX_UTTERANCE_MS) flush();
   };
+  return { feed, flush };
 }
 
 /**
@@ -82,7 +91,7 @@ function segmenter(ctx: AudioContext, onUtterance: (samples: Float32Array) => vo
  * everyone on a Zoom, Meet or Teams call. Every utterance is sent off; the server decides what is a request.
  */
 export function useListen(roomId: string, userId: string) {
-  const live = useRef<{ ctx: AudioContext; streams: MediaStream[] } | null>(null);
+  const live = useRef<{ ctx: AudioContext; streams: MediaStream[]; flushes: (() => void)[] } | null>(null);
 
   const upload = useCallback(
     async (samples: Float32Array, rate: number, source: Source) => {
@@ -103,6 +112,8 @@ export function useListen(roomId: string, userId: string) {
   );
 
   const stop = useCallback(() => {
+    // Send whatever was being said when listening was turned off instead of dropping it.
+    live.current?.flushes.forEach((f) => f());
     live.current?.streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
     void live.current?.ctx.close();
     live.current = null;
@@ -150,9 +161,11 @@ export function useListen(roomId: string, userId: string) {
 
       // Push-to-talk already sends what you say while holding the button, so the open mic sits that out.
       const holding = () => useVoice.getState().state !== "idle";
+      const flushes: (() => void)[] = [];
       const attach = (stream: MediaStream, source: Source) => {
         const node = new AudioWorkletNode(ctx, "pcm-tap");
-        const feed = segmenter(ctx, (s) => void upload(s, ctx.sampleRate, source), source === "mic" ? holding : () => false);
+        const { feed, flush } = segmenter(ctx, (s) => void upload(s, ctx.sampleRate, source), source === "mic" ? holding : () => false);
+        flushes.push(flush);
         let frame = 0;
         node.port.onmessage = (e: MessageEvent<Float32Array>) => {
           feed(e.data);
@@ -167,7 +180,7 @@ export function useListen(roomId: string, userId: string) {
       };
       attach(streams.at(-1)!, "mic");
       if (withCall) attach(streams[0]!, "call");
-      live.current = { ctx, streams };
+      live.current = { ctx, streams, flushes };
       useVoice.setState({ listen: withCall ? "call" : "mic" });
     },
     [stop, upload],
