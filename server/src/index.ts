@@ -22,11 +22,11 @@ app.get("/health", async () => ({ ok: true }));
 /** AI-generated images, by the random file name generateImage chose (nothing else in the folder is reachable). */
 app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
   const { file } = req.params;
-  if (!/^[0-9a-f-]{36}\.(webp|png)$/.test(file)) return reply.code(404).send();
+  if (!/^[0-9a-f-]{36}\.(webp|png|jpg)$/.test(file)) return reply.code(404).send();
   const full = path.join(IMAGE_DIR, file);
   if (!existsSync(full)) return reply.code(404).send();
   reply.header("cache-control", "public, max-age=31536000, immutable");
-  return reply.type(file.endsWith(".png") ? "image/png" : "image/webp").send(createReadStream(full));
+  return reply.type(file.endsWith(".png") ? "image/png" : file.endsWith(".jpg") ? "image/jpeg" : "image/webp").send(createReadStream(full));
 });
 
 /** The workspace file list for the home screen, most recently edited first. */

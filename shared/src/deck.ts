@@ -129,6 +129,7 @@ export function defaultPlacement(
   const presets: Record<string, { box: Box; style: Style }> = {
     "title:title": { box: { x: 120, y: 230, w: 1040, h: 140 }, style: { fontSize: 60, bold: true, align: "center", valign: "bottom" } },
     "title:subtitle": { box: { x: 160, y: 390, w: 960, h: 80 }, style: { fontSize: 28, color: MUTED, align: "center" } },
+    "title:img": { box: { x: 900, y: 500, w: 340, h: 190 }, style: { radius: 8, fit: "cover" } },
     "bullets:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: { fontSize: 44, bold: true, valign: "middle" } },
     "bullets:body": { box: { x: 80, y: 190, w: 1120, h: 470 }, style: { fontSize: 28, color: BODY, lineHeight: 1.6 } },
     "image-left:img": { box: { x: 60, y: 60, w: 560, h: 600 }, style: { radius: 16, fit: "cover" } },

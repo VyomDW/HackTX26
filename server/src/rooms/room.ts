@@ -15,7 +15,8 @@ import {
   type UserOp,
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
-import { generateImage, imagesEnabled } from "../integrations/image";
+import { findSourcedImage, generateImage, imagesEnabled } from "../integrations/image";
+import { search, type SearchResult } from "../integrations/search";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { lines } from "../ndjson";
 import { loadRooms, scheduleSave } from "./store";
@@ -201,7 +202,22 @@ export class Room {
     this.broadcast({ type: "turn", turn });
     this.pending.push({ speaker, text });
     const requests = [...this.pending];
-    const messages = this.buildMessages(requests);
+    let sources: SearchResult[] = [];
+    if (this.kind === "slides") {
+      try {
+        sources = await search(requests.map((r) => r.text).join("\n"));
+      } catch (err) {
+        console.warn("[room " + this.id + "] search unavailable", err instanceof Error ? err.message : err);
+      }
+    }
+    if (controller.signal.aborted) {
+      if (this.inflight?.controller === controller) {
+        this.inflight = undefined;
+        this.broadcast({ type: "ai_status", status: "idle" });
+      }
+      return;
+    }
+    const messages = this.buildMessages(requests, sources);
     // Applied lines are remembered as the AI's reply, which also shows it its own format on later turns.
     // The reply slot is reserved now and filled as ops land, so an interrupting prompt still sees it in order.
     const reply = { role: "assistant" as const, text: "(no changes)" };
@@ -226,11 +242,31 @@ export class Room {
           console.warn(`[room ${this.id}] invalid op`, line);
           continue;
         }
+        if (op.data.type === "add_citation") {
+          const citation = op.data;
+          const match = sources.find((source) => source.url === citation.url && source.title === citation.source);
+          if (!match) {
+            console.warn("[room " + this.id + "] dropped citation not found in SerpApi results", citation);
+            continue;
+          }
+        }
+        if (this.doc.kind === "slides" && op.data.type === "add_image" && !op.data.url) {
+          const imageOp = op.data;
+          const slide = this.doc.slides.find((s) => s.id === imageOp.slideId);
+          if (slide?.layout === "title") imageOp.box = { x: 900, y: 500, w: 340, h: 190 };
+          const existing = slide?.elements.find((element) => element.id === imageOp.elementId);
+          if (existing?.kind === "image") {
+            this.apply({ type: "delete_element", slideId: imageOp.slideId, elementId: imageOp.elementId }, "ai", meta);
+            for (const citation of [...(slide?.citations ?? [])]) {
+              this.apply({ type: "remove_citation", slideId: imageOp.slideId, citationId: citation.id }, "ai", meta);
+            }
+          }
+        }
         // A dropped add_slide would otherwise sink every later edit to that slide, so recreate it on demand.
         const missing = this.missingSlide(op.data);
         if (missing && this.apply(missing, "ai", meta)) applied.push(JSON.stringify(missing));
         if (this.apply(op.data, "ai", meta)) {
-          this.illustrate(op.data, meta);
+          this.illustrate(op.data, meta, requests.map((r) => r.text).join("\n"));
           applied.push(line);
           reply.text = applied.join("\n");
         }
@@ -258,7 +294,7 @@ export class Room {
    * The model asks for pictures by description (a board image node, a slide add_image); Muse Image draws them
    * in the background while the rest of the response keeps streaming, then the URL lands as a normal op.
    */
-  private illustrate(op: Op, meta: { turnId?: string }) {
+  private illustrate(op: Op, meta: { turnId?: string }, context = "") {
     const board = this.doc.kind === "board" ? this.doc : undefined;
     let prompt: string | undefined;
     let finish: ((url: string) => Op) | undefined;
@@ -281,7 +317,9 @@ export class Room {
       prompt = `${op.prompt}. High quality editorial illustration for a presentation slide, no text.`;
       finish = (url) => ({ type: "set_image_url", slideId: op.slideId, elementId: op.elementId, url });
     }
-    if (!prompt || !finish || !imagesEnabled) return;
+    const sourcedSlideImageOp = this.doc.kind === "slides" && op.type === "add_image" && !op.url ? op : undefined;
+    const sourcedSlideImage = !!sourcedSlideImageOp;
+    if (!prompt || !finish || (!imagesEnabled && !sourcedSlideImage)) return;
     // Over the limit, wait for a slot rather than dropping the picture (it would show "drawing…" forever).
     if (this.drawing >= MAX_PARALLEL_IMAGES) {
       setTimeout(() => this.illustrate(op, meta), 1500);
@@ -289,12 +327,20 @@ export class Room {
     }
     if (boardImage && node) this.pendingImages.add(node.id);
     this.drawing++;
-    generateImage(prompt)
-      .then((url) => this.apply(finish(url), "ai", meta))
+    const work = sourcedSlideImage
+      ? findSourcedImage(sourcedSlideImageOp!.prompt, context).then((image) => {
+          this.apply(finish(image.url), "ai", meta);
+          this.apply({ type: "add_citation", slideId: sourcedSlideImageOp!.slideId, source: image.title, url: image.sourceUrl }, "ai", meta);
+        })
+      : generateImage(prompt).then((url) => this.apply(finish(url), "ai", meta));
+    work
       .catch((err) => {
         if (nodeId) this.pendingImages.delete(nodeId);
-        console.error(`[room ${this.id}] image generation failed`, err);
-        this.broadcast({ type: "error", message: "Muse couldn't draw one of the images. Try asking again." });
+        console.error("[room " + this.id + "] image lookup/generation failed", err);
+        const message = sourcedSlideImage
+          ? "Couldn't find a downloadable, high-resolution image match. The placeholder remains on the slide."
+          : "Muse couldn't draw one of the images. Try asking again.";
+        this.broadcast({ type: "error", message });
       })
       .finally(() => this.drawing--);
   }
@@ -309,12 +355,13 @@ export class Room {
   }
 
   /** Built before the new turn is recorded, so history holds only earlier turns. */
-  private buildMessages(requests: { speaker: string; text: string }[]): ChatMessage[] {
+  private buildMessages(requests: { speaker: string; text: string }[], sources: SearchResult[] = []): ChatMessage[] {
     const request = requests.length === 1 ? requests[0]!.text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
+    const sourceContext = this.kind === "slides" ? "SEARCH SOURCES (cite only exact title and URL pairs from this list):\n" + JSON.stringify(sources) + "\n\n" : "";
     return [
       { role: "developer", content: SYSTEM_PROMPTS[this.kind] },
       ...this.conversation.slice(-10).map(({ role, text }) => ({ role, content: text })),
-      { role: "user", content: `Current ${NOUN[this.kind]}:\n${describeDocument(this.doc)}\n\nRequest: ${request}` },
+      { role: "user", content: `Current ${NOUN[this.kind]}:\n${describeDocument(this.doc)}\n\n${sourceContext}Request: ${request}` },
     ];
   }
 

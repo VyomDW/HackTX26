@@ -25,6 +25,8 @@ Content:
 {"type":"add_image","slideId":"s3","elementId":"s3-img","prompt":"short visual description"}   optional "box", "style".
 {"type":"add_shape","slideId":"s3","elementId":"s3-badge","shape":"rounded","text":"New"}   shape: rect | rounded | ellipse | triangle | diamond | star | line | arrow. Optional "box", "style", "text".
 {"type":"delete_element","slideId":"s3","elementId":"s3-body"}
+{"type":"add_citation","slideId":"s3","source":"Exact result title","url":"https://example.com/source"}   cite factual claims with an exact title and URL from SEARCH SOURCES.
+{"type":"remove_citation","slideId":"s3","citationId":"s3-c1"}   removes an outdated citation.
 Design:
 {"type":"set_box","slideId":"s3","elementId":"s3-title","x":80,"y":40,"w":800,"h":120,"rotate":0}   move/resize/rotate; give only the fields that change.
 {"type":"set_style","slideId":"s3","elementId":"s3-title","style":{"color":"#7c3aed","bold":true}}   give only the properties that change; null resets one.
@@ -55,8 +57,9 @@ RULES
 5. For a new presentation, build 4 to 6 slides, starting with a title slide. Rely on layout defaults; add design touches only when they help.
 6. For an edit request, change only what was asked. Do not rebuild the deck. For "move", "bigger", "color", "font" style requests use set_box and set_style.
 7. Keep everything inside the 1280x720 canvas, keep text readable (fontSize 18 or more) and keep enough contrast with the slide background.
-8. Never emit add_citation or set_image_url; the server handles sources and image generation.
-9. If the request is unclear, make a sensible choice rather than asking.`;
+8. Cite factual claims using add_citation with an exact title and URL from SEARCH SOURCES. Never invent citations or emit set_image_url; the server finds and attributes images. Preserve named teams, schools, venues, people, and places in image prompts.
+9. If the request changes a slide topic or subject, replace its existing image with add_image using that image elementId and a precise prompt for the new subject, then cite current sources from this turn. Keep images and citations for cosmetic edits.
+10. If the request is unclear, make a sensible choice rather than asking.`;
 
 const DOC = `You are a live co-editor for a text document (like Google Docs or Word). Users watch your edits appear one by one as you stream them.
 
