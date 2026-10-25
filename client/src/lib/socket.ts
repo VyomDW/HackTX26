@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { ServerMessage, type ClientMessage, type DocKind } from "@hacktx/shared";
 import { useDeck } from "@/store/deck";
+import { homeUrl } from "@/lib/kinds";
 import { useVoice } from "@/store/voice";
 
 const wsUrl = import.meta.env.VITE_WS_URL || `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
@@ -38,7 +39,7 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
       };
       ws.onclose = (e) => {
         // the file was deleted (here or by someone else): back to the home screen
-        if (e.code === 4404) return location.assign(location.pathname);
+        if (e.code === 4404) return location.assign(homeUrl());
         setConnected(false);
         useDeck.getState().setAiStatus("idle");
         if (!closed) retry = setTimeout(connect, Math.min(500 * 2 ** attempt++, 8000));
