@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, LayoutGrid, Link2, Loader2, X } from "lucide-react";
-import { DocKind } from "@hacktx/shared";
+import { BoardTemplate, DocKind } from "@hacktx/shared";
 import { Activity, AiAvatar } from "@/components/Activity";
+import { BoardEditor } from "@/components/board/BoardEditor";
 import { DocEditor } from "@/components/DocEditor";
 import { Dock } from "@/components/Dock";
 import { Home } from "@/components/Home";
@@ -13,7 +14,7 @@ import { Present, PrintDeck } from "@/components/Present";
 import { SheetEditor } from "@/components/SheetEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
 import { useIdentity } from "@/lib/identity";
-import { KINDS } from "@/lib/kinds";
+import { metaOf } from "@/lib/kinds";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
@@ -37,6 +38,7 @@ export default function App() {
       roomId={roomId}
       kind={DocKind.safeParse(params.get("kind")).data}
       initialPrompt={params.get("q") ?? undefined}
+      template={BoardTemplate.safeParse(params.get("template")).data}
       userId={userId}
       name={name}
       onRename={setName}
@@ -49,6 +51,7 @@ function Workspace({
   roomId,
   kind,
   initialPrompt,
+  template,
   userId,
   name,
   onRename,
@@ -56,6 +59,7 @@ function Workspace({
   roomId: string;
   kind?: DocKind;
   initialPrompt?: string;
+  template?: BoardTemplate;
   userId: string;
   name: string;
   onRename: (name: string) => void;
@@ -73,6 +77,14 @@ function Workspace({
   useEffect(() => {
     if (loaded) document.title = `${doc.title} · Muse Office`;
   }, [loaded, doc.title]);
+
+  // A new board takes the template picked on the home screen (before any first request, so Muse knows it).
+  const setTemplate = useRef(false);
+  useEffect(() => {
+    if (!loaded || !connected || setTemplate.current) return;
+    setTemplate.current = true;
+    if (doc.kind === "board" && !doc.template && template) commit({ type: "set_board", template });
+  }, [loaded, connected, doc, template]);
 
   // A request typed on the home screen is sent once the new file is open, then dropped from the URL.
   useEffect(() => {
@@ -103,6 +115,8 @@ function Workspace({
               <DocEditor doc={doc} />
             ) : doc.kind === "sheet" ? (
               <SheetEditor sheet={doc} />
+            ) : doc.kind === "board" ? (
+              <BoardEditor board={doc} />
             ) : (
               <NotesEditor book={doc} />
             )}
@@ -110,7 +124,7 @@ function Workspace({
           <Activity
             userId={userId}
             compact={!desktop}
-            suggestions={loaded && doc.kind !== "slides" ? KINDS[doc.kind].suggestions : undefined}
+            suggestions={loaded && doc.kind !== "slides" ? metaOf(doc.kind, doc.kind === "board" ? doc.template : undefined).suggestions : undefined}
             onPick={(t) => connected && prompt(t)}
             className="order-2 max-h-[34dvh] shrink-0 border-t border-line print:hidden lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-h-none lg:border-l lg:border-t-0"
           />
@@ -118,7 +132,7 @@ function Workspace({
             onPrompt={prompt}
             onStop={() => send({ type: "stop" })}
             disabled={!connected}
-            placeholder={KINDS[doc.kind].placeholder}
+            placeholder={metaOf(doc.kind, doc.kind === "board" ? doc.template : undefined).placeholder}
             className="order-3 shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] print:hidden lg:order-none lg:col-start-1 lg:row-start-2"
           />
         </div>
@@ -152,7 +166,7 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
   const [copied, setCopied] = useState(false);
   const [title, setTitle] = useState(doc.title);
   useEffect(() => setTitle(doc.title), [doc.title]);
-  const K = KINDS[doc.kind];
+  const K = metaOf(doc.kind, doc.kind === "board" ? doc.template : undefined);
 
   const label = !connected ? "Reconnecting…" : aiStatus === "thinking" ? "Thinking…" : busy ? "Editing…" : "Ready";
 

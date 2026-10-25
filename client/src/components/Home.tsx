@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { ArrowUp, Clock, Trash2, Users } from "lucide-react";
-import type { DocKind } from "@hacktx/shared";
-import { KINDS, newRoomId, roomUrl } from "@/lib/kinds";
+import type { BoardTemplate, DocKind } from "@hacktx/shared";
+import { KINDS, metaOf, newRoomId, roomUrl, TARGETS, type Target } from "@/lib/kinds";
 import { cn } from "@/lib/utils";
 
 interface FileInfo {
   id: string;
   kind: DocKind;
+  template?: BoardTemplate;
   title: string;
   updatedAt: number;
   online: number;
@@ -23,7 +24,8 @@ const ago = (t: number) => {
 /** Workspace home: start any kind of file (optionally with a first request for Muse) and reopen recent ones. */
 export function Home() {
   const [files, setFiles] = useState<FileInfo[]>();
-  const [kind, setKind] = useState<DocKind>("slides");
+  const [targetKey, setTargetKey] = useState("slides");
+  const target = TARGETS.find((t) => t.key === targetKey)!;
   const [prompt, setPrompt] = useState("");
   const [confirm, setConfirm] = useState<string>();
   const [filter, setFilter] = useState<DocKind | "all">("all");
@@ -38,7 +40,7 @@ export function Home() {
     document.title = "Muse Office";
   }, []);
 
-  const open = (k: DocKind, q?: string) => location.assign(roomUrl(newRoomId(), k, q));
+  const open = (t: Target, q?: string) => location.assign(roomUrl(newRoomId(), t.kind, q, t.template));
   const shown = (files ?? []).filter((f) => filter === "all" || f.kind === filter);
 
   return (
@@ -55,33 +57,30 @@ export function Home() {
           <h1 className="relative font-display text-3xl font-bold tracking-tight sm:text-5xl">What do you want to make?</h1>
           <p className="relative mt-2 max-w-xl text-[15px] text-dim">Describe it and Muse builds it live. Anyone you invite can edit alongside.</p>
           <div className="relative mt-5 flex flex-wrap gap-2">
-            {(Object.keys(KINDS) as DocKind[]).map((k) => {
-              const K = KINDS[k];
-              return (
-                <button
-                  key={k}
-                  onClick={() => setKind(k)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition",
-                    kind === k ? "bg-orb/15 text-orb ring-1 ring-orb/40" : "bg-white/5 text-ink hover:bg-white/10",
-                  )}
-                >
-                  <K.icon className="size-4" /> {K.label}
-                </button>
-              );
-            })}
+            {TARGETS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTargetKey(t.key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition",
+                  targetKey === t.key ? "bg-orb/15 text-orb ring-1 ring-orb/40" : "bg-white/5 text-ink hover:bg-white/10",
+                )}
+              >
+                <t.icon className="size-4" /> {t.label}
+              </button>
+            ))}
           </div>
           <form
             className="mt-3 flex items-center gap-2 rounded-full border border-line bg-white/[0.03] p-1.5 pl-3 focus-within:border-orb"
             onSubmit={(e) => {
               e.preventDefault();
-              if (prompt.trim()) open(kind, prompt.trim());
+              if (prompt.trim()) open(target, prompt.trim());
             }}
           >
             <input
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder={KINDS[kind].suggestions[0]}
+              placeholder={target.suggestions[0]}
               className="min-w-0 flex-1 bg-transparent px-2 text-[15px] text-ink outline-none placeholder:text-dim"
             />
             <button type="submit" disabled={!prompt.trim()} className="grid size-9 place-items-center rounded-full bg-orb text-orb-ink disabled:opacity-30">
@@ -89,31 +88,35 @@ export function Home() {
             </button>
           </form>
           <div className="mt-3 flex flex-wrap gap-2">
-            {KINDS[kind].suggestions.map((s) => (
-              <button key={s} onClick={() => open(kind, s)} className="rounded-full border border-line px-3 py-1 text-xs text-dim hover:border-orb hover:text-orb">
+            {target.suggestions.map((s) => (
+              <button key={s} onClick={() => open(target, s)} className="rounded-full border border-line px-3 py-1 text-xs text-dim hover:border-orb hover:text-orb">
                 {s}
               </button>
             ))}
           </div>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Start blank</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(Object.keys(KINDS) as DocKind[]).map((k) => {
-              const K = KINDS[k];
-              return (
-                <button key={k} onClick={() => open(k)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:shadow-md">
-                  <div className={cn("grid size-10 place-items-center rounded-lg text-white", K.color)}>
-                    <K.icon className="size-5" />
+        {(
+          [
+            ["office", "Start blank"],
+            ["dev", "Dev & design tools"],
+          ] as const
+        ).map(([group, heading]) => (
+          <section key={group} className="mt-10">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">{heading}</h2>
+            <div className={cn("mt-3 grid grid-cols-2 gap-3", group === "office" ? "sm:grid-cols-4" : "sm:grid-cols-3 lg:grid-cols-6")}>
+              {TARGETS.filter((t) => t.group === group).map((t) => (
+                <button key={t.key} onClick={() => open(t)} className="group rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:shadow-md">
+                  <div className={cn("grid size-10 place-items-center rounded-lg text-white", t.color)}>
+                    <t.icon className="size-5" />
                   </div>
-                  <div className="mt-3 font-semibold">{K.label}</div>
-                  <div className="text-xs text-slate-500">Blank {K.noun}</div>
+                  <div className="mt-3 font-semibold">{t.label}</div>
+                  <div className="text-xs text-slate-500">Blank {t.noun}</div>
                 </button>
-              );
-            })}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        ))}
 
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -134,7 +137,7 @@ export function Home() {
             {files === undefined && <div className="p-6 text-sm text-slate-400">Loading…</div>}
             {files && shown.length === 0 && <div className="p-6 text-sm text-slate-400">Nothing here yet. Start something above.</div>}
             {shown.map((f) => {
-              const K = KINDS[f.kind];
+              const K = metaOf(f.kind, f.template);
               return (
                 <div key={f.id} className="group flex items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50">
                   <div className={cn("grid size-8 shrink-0 place-items-center rounded-md", K.tint)}>

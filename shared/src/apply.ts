@@ -1,4 +1,5 @@
 import { defaultPlacement, type Box, type Deck, type Element, type Slide, type Style, type StylePatch } from "./deck";
+import { layoutBoard, nodeDefaults, type Board, type BoardEdge, type BoardNode } from "./board";
 import type { Document } from "./document";
 import { evaluateSheet, isError, type Value } from "./formula";
 import type { Notebook } from "./notes";
@@ -31,6 +32,8 @@ export function applyOp(doc: Document, op: Op): ApplyResult {
       return applySheet(doc, op);
     case "notes":
       return applyNotes(doc, op);
+    case "board":
+      return applyBoard(doc, op);
   }
 }
 
@@ -522,5 +525,124 @@ function applyNotes(book: Notebook, op: Op): ApplyResult {
       return { doc: next, inverse: [{ type: "delete_note", id: op.note.id }] };
     default:
       throw foreign(op, "notebook");
+  }
+}
+
+function applyBoard(board: Board, op: Op): ApplyResult {
+  const next: Board = structuredClone(board);
+  const nodeAt = (id: string) => next.nodes.findIndex((n) => n.id === id);
+  const edgeAt = (id: string) => next.edges.findIndex((e) => e.id === id);
+  /** Applies optional/nullable fields onto an object, returning the previous values (null where absent). */
+  const patch = (target: Record<string, unknown>, fields: Record<string, unknown>) => {
+    const prev: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      prev[k] = target[k] ?? null;
+      if (v === null) delete target[k];
+      else target[k] = v;
+    }
+    return prev;
+  };
+
+  switch (op.type) {
+    case "add_node": {
+      if (nodeAt(op.id) >= 0) throw new OpError(`node ${op.id} exists`);
+      const { type: _t, id, shape: requested, ...fields } = op;
+      // Furniture is always a fixture node, and on a floor plan a "table" means furniture, not a database table.
+      let shape = fields.fixture ? "fixture" : requested;
+      if (board.template === "blueprint" && shape === "table") {
+        shape = "fixture";
+        fields.fixture = "table";
+        delete fields.fields;
+      }
+      const d = nodeDefaults(shape, fields.fields, fields.fixture ?? undefined);
+      // Without a position, new nodes line up to the right of what is already there.
+      const right = next.nodes.length ? Math.max(...next.nodes.map((n) => n.x + n.w)) + 60 : 0;
+      const top = next.nodes.length ? Math.min(...next.nodes.map((n) => n.y)) : 0;
+      const node: BoardNode = { id, shape, x: right, y: top, text: "", ...d };
+      for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== null) (node as Record<string, unknown>)[k] = v;
+      next.nodes.push(node);
+      return { doc: next, inverse: [{ type: "delete_node", id }] };
+    }
+    case "set_node": {
+      const node = next.nodes[nodeAt(op.id)];
+      if (!node) throw new OpError(`unknown node ${op.id}`);
+      const { type: _t, id, ...fields } = op;
+      const prev = patch(node as Record<string, unknown>, fields);
+      // Required fields can't be cleared, so their "previous null" never happens; drop nulls for them.
+      for (const k of ["shape", "x", "y", "w", "h", "text", "fields"]) if (prev[k] === null) delete prev[k];
+      if (prev.rotate === null) prev.rotate = 0;
+      return { doc: next, inverse: [{ type: "set_node", id, ...prev }] };
+    }
+    case "delete_node": {
+      const index = nodeAt(op.id);
+      if (index < 0) throw new OpError(`unknown node ${op.id}`);
+      const [node] = next.nodes.splice(index, 1);
+      const edges = next.edges.filter((e) => e.from === op.id || e.to === op.id);
+      next.edges = next.edges.filter((e) => e.from !== op.id && e.to !== op.id);
+      return { doc: next, inverse: [{ type: "restore_node", node: node!, index, edges }] };
+    }
+    case "restore_node": {
+      if (nodeAt(op.node.id) >= 0) throw new OpError(`node ${op.node.id} exists`);
+      next.nodes.splice(Math.min(op.index, next.nodes.length), 0, op.node);
+      for (const e of op.edges) if (edgeAt(e.id) < 0) next.edges.push(e);
+      return { doc: next, inverse: [{ type: "delete_node", id: op.node.id }] };
+    }
+    case "add_edge": {
+      if (edgeAt(op.id) >= 0) throw new OpError(`edge ${op.id} exists`);
+      if (nodeAt(op.from) < 0 || nodeAt(op.to) < 0) throw new OpError(`edge ${op.id} connects unknown nodes`);
+      const { type: _t, ...edge } = op;
+      next.edges.push(edge as BoardEdge);
+      return { doc: next, inverse: [{ type: "delete_edge", id: op.id }] };
+    }
+    case "set_edge": {
+      const edge = next.edges[edgeAt(op.id)];
+      if (!edge) throw new OpError(`unknown edge ${op.id}`);
+      const { type: _t, id, ...fields } = op;
+      const prev = patch(edge as Record<string, unknown>, fields);
+      if (prev.dashed === null) prev.dashed = false;
+      return { doc: next, inverse: [{ type: "set_edge", id, ...prev }] };
+    }
+    case "delete_edge": {
+      const index = edgeAt(op.id);
+      if (index < 0) throw new OpError(`unknown edge ${op.id}`);
+      const [edge] = next.edges.splice(index, 1);
+      return { doc: next, inverse: [{ type: "restore_edge", edge: edge!, index }] };
+    }
+    case "restore_edge":
+      if (edgeAt(op.edge.id) >= 0) throw new OpError(`edge ${op.edge.id} exists`);
+      next.edges.splice(Math.min(op.index, next.edges.length), 0, op.edge);
+      return { doc: next, inverse: [{ type: "delete_edge", id: op.edge.id }] };
+    case "add_stroke":
+      if (next.strokes.some((s) => s.id === op.stroke.id)) throw new OpError(`stroke ${op.stroke.id} exists`);
+      next.strokes.push(op.stroke);
+      return { doc: next, inverse: [{ type: "delete_stroke", id: op.stroke.id }] };
+    case "delete_stroke": {
+      const index = next.strokes.findIndex((s) => s.id === op.id);
+      if (index < 0) throw new OpError(`unknown stroke ${op.id}`);
+      const [stroke] = next.strokes.splice(index, 1);
+      return { doc: next, inverse: [{ type: "add_stroke", stroke: stroke! }] };
+    }
+    case "auto_layout":
+    case "set_positions": {
+      const positions = op.type === "auto_layout" ? layoutBoard(board, op.direction, op.nodeIds) : op.positions;
+      const prev: Record<string, { x: number; y: number }> = {};
+      for (const [id, p] of Object.entries(positions)) {
+        const node = next.nodes[nodeAt(id)];
+        if (!node) continue;
+        prev[id] = { x: node.x, y: node.y };
+        node.x = p.x;
+        node.y = p.y;
+      }
+      return { doc: next, inverse: [{ type: "set_positions", positions: prev }] };
+    }
+    case "set_board": {
+      const prev = next.template ?? null;
+      if (op.template === null) delete next.template;
+      else if (op.template !== undefined) next.template = op.template;
+      return { doc: next, inverse: [{ type: "set_board", template: prev }] };
+    }
+    default:
+      throw foreign(op, "board");
   }
 }

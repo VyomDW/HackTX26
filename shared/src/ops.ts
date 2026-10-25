@@ -1,5 +1,20 @@
 import { z } from "zod";
 import { Box, Element, Layout, ShapeKind, Slide, Style, StylePatch } from "./deck";
+import {
+  AddEdge,
+  AddNode,
+  AddStroke,
+  AutoLayout,
+  DeleteEdge,
+  DeleteNode,
+  DeleteStroke,
+  RestoreEdge,
+  RestoreNode,
+  SetBoard,
+  SetEdge,
+  SetNode,
+  SetPositions,
+} from "./board";
 import type { DocKind } from "./document";
 import { AddNote, DeleteNote, RestoreNote, SetNote } from "./notes";
 import {
@@ -164,6 +179,17 @@ export const SheetModelOp = z.discriminatedUnion("type", [
   SetTitle,
 ]);
 export const NotesModelOp = z.discriminatedUnion("type", [AddNote, SetNote, DeleteNote, SetTitle]);
+export const BoardModelOp = z.discriminatedUnion("type", [
+  AddNode,
+  SetNode,
+  DeleteNode,
+  AddEdge,
+  SetEdge,
+  DeleteEdge,
+  AutoLayout,
+  SetBoard,
+  SetTitle,
+]);
 
 /** The op vocabulary the model gets for each kind of file. */
 export const MODEL_OPS: Record<DocKind, z.ZodType<ModelOp>> = {
@@ -171,6 +197,7 @@ export const MODEL_OPS: Record<DocKind, z.ZodType<ModelOp>> = {
   doc: DocModelOp,
   sheet: SheetModelOp,
   notes: NotesModelOp,
+  board: BoardModelOp,
 };
 
 /** Anything the model may emit, across all kinds. */
@@ -194,6 +221,14 @@ export const ModelOp = z.discriminatedUnion("type", [
   AddNote,
   SetNote,
   DeleteNote,
+  AddNode,
+  SetNode,
+  DeleteNode,
+  AddEdge,
+  SetEdge,
+  DeleteEdge,
+  AutoLayout,
+  SetBoard,
 ]);
 export type ModelOp = z.infer<typeof ModelOp>;
 
@@ -216,8 +251,8 @@ export const RemoveCitation = z.object({
 });
 export const Noop = z.object({ type: z.literal("noop") });
 
-/** What the editor may send directly: everything the model can do, plus pasting a whole element. */
-export const UserOp = z.discriminatedUnion("type", [...ModelOp.options, InsertElement]);
+/** What the editor may send directly: everything the model can do, plus pasting a whole element and pen strokes. */
+export const UserOp = z.discriminatedUnion("type", [...ModelOp.options, InsertElement, AddStroke, DeleteStroke]);
 export type UserOp = z.infer<typeof UserOp>;
 
 export const Op = z.discriminatedUnion("type", [
@@ -230,6 +265,11 @@ export const Op = z.discriminatedUnion("type", [
   RestoreChart,
   SetGrid,
   RestoreNote,
+  AddStroke,
+  DeleteStroke,
+  RestoreNode,
+  RestoreEdge,
+  SetPositions,
   Noop,
 ]);
 export type Op = z.infer<typeof Op>;

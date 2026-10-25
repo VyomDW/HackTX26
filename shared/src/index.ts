@@ -2,6 +2,7 @@ export * from "./deck";
 export * from "./textdoc";
 export * from "./sheet";
 export * from "./notes";
+export * from "./board";
 export * from "./document";
 export * from "./formula";
 export * from "./ops";

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyOp, emptySheet, emptyTextDoc, emptyNotebook, evaluateSheet, formatValue, type Document, type Op } from "@hacktx/shared";
+import { applyOp, emptyBoard, emptySheet, emptyTextDoc, emptyNotebook, evaluateSheet, formatValue, type Document, type Op } from "@hacktx/shared";
 
 /** Applies ops in order, then checks that applying all inverses (newest first) restores the start. */
 function roundTrip(start: Document, ops: Op[]) {
@@ -88,4 +88,37 @@ test("notes ops round-trip and new notes go to the top", () => {
 
 test("ops for another kind of file are rejected", () => {
   assert.throws(() => applyOp(emptyTextDoc("d"), { type: "set_cells", cells: { A1: "1" } }), /does not apply/);
+});
+
+test("board ops round-trip, deleting a node removes its edges, and layout is layered", () => {
+  const end = roundTrip(emptyBoard("b"), [
+    { type: "set_board", template: "flowchart" },
+    { type: "add_node", id: "n1", shape: "pill", text: "Start" },
+    { type: "add_node", id: "n2", shape: "diamond", text: "Valid?" },
+    { type: "add_node", id: "n3", shape: "rect", text: "Save", x: 500, y: 500 },
+    { type: "add_edge", id: "e1", from: "n1", to: "n2" },
+    { type: "add_edge", id: "e2", from: "n2", to: "n3", label: "yes", route: "elbow" },
+    { type: "set_node", id: "n2", fill: "#fff", text: "OK?" },
+    { type: "set_edge", id: "e2", dashed: true, label: null },
+    { type: "auto_layout", direction: "TB" },
+    { type: "add_stroke", stroke: { id: "s1", points: [0, 0, 10, 10], color: "#000", width: 3 } },
+    { type: "delete_node", id: "n2" },
+  ]);
+  assert.ok(end.kind === "board");
+  assert.deepEqual(end.edges, [], "edges of a deleted node go with it");
+
+  let b: Document = emptyBoard("b");
+  for (const op of [
+    { type: "add_node", id: "a", shape: "rect" },
+    { type: "add_node", id: "b", shape: "rect" },
+    { type: "add_node", id: "c", shape: "rect" },
+    { type: "add_edge", id: "e1", from: "a", to: "b" },
+    { type: "add_edge", id: "e2", from: "b", to: "c" },
+    { type: "add_edge", id: "e3", from: "c", to: "a" },
+    { type: "auto_layout", direction: "TB" },
+  ] as Op[])
+    b = applyOp(b, op).doc;
+  assert.ok(b.kind === "board");
+  const ys = b.nodes.map((n) => n.y);
+  assert.ok(ys[0]! < ys[1]! && ys[1]! < ys[2]!, `layered top to bottom despite the cycle: ${ys}`);
 });

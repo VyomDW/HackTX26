@@ -200,3 +200,37 @@
     background: transparent;
   }
 }
+
+/* Whiteboard pen: what the AI draws traces itself in (paths use pathLength="1"). */
+@keyframes pen-trace {
+  from { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  to { stroke-dasharray: 1; stroke-dashoffset: 0; }
+}
+@keyframes pen-outline {
+  0% { stroke-dasharray: 1; stroke-dashoffset: 1; fill-opacity: 0; }
+  75% { stroke-dasharray: 1; stroke-dashoffset: 0; fill-opacity: 0; }
+  100% { stroke-dasharray: 1; stroke-dashoffset: 0; fill-opacity: 1; }
+}
+@keyframes pen-wipe-x {
+  from { clip-path: inset(-4px 100% -4px -4px); }
+  to { clip-path: inset(-4px -4px -4px -4px); }
+}
+@keyframes pen-wipe-y {
+  from { clip-path: inset(-4px -4px 100% -4px); }
+  to { clip-path: inset(-4px -4px -4px -4px); }
+}
+@keyframes pen-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pen-move {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
+}
+@keyframes pen-lift {
+  from { opacity: 1; translate: 0 0; }
+  to { opacity: 0; translate: 6px -10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="pen-"] { animation: none !important; }
+}

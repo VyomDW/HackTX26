@@ -15,14 +15,16 @@ import {
   type UserOp,
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
+import { generateImage, imagesEnabled } from "../integrations/image";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { lines } from "../ndjson";
 import { loadRooms, scheduleSave } from "./store";
 import { describeDocument, SYSTEM_PROMPTS } from "./prompts";
 
 const PROMPTS_PER_MINUTE = 20;
+const MAX_PARALLEL_IMAGES = 4;
 
-const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook" };
+const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook", board: "board" };
 
 /** Turns SDK failures into something worth showing a user. */
 function errorMessage(err: unknown): string {
@@ -121,7 +123,11 @@ export class Room {
    * The editor already applied them locally, so a rejection means it drifted: resend the true state.
    */
   userOps(ops: UserOp[], member: Member) {
-    const ids = ops.map((op) => this.apply(op, member.userId));
+    const ids = ops.map((op) => {
+      const id = this.apply(op, member.userId);
+      if (id) this.illustrate(op, {});
+      return id;
+    });
     if (ids.some((id) => !id)) this.sendSnapshot(member);
     const applied = ids.filter((id): id is string => !!id);
     if (!applied.length) return;
@@ -220,6 +226,7 @@ export class Room {
         const missing = this.missingSlide(op.data);
         if (missing && this.apply(missing, "ai", meta)) applied.push(JSON.stringify(missing));
         if (this.apply(op.data, "ai", meta)) {
+          this.illustrate(op.data, meta);
           applied.push(line);
           reply.text = applied.join("\n");
         }
@@ -237,6 +244,55 @@ export class Room {
         this.broadcast({ type: "ai_status", status: "idle" });
       }
     }
+  }
+
+  private drawing = 0;
+  /** Board image nodes with a generation in flight, so a burst of edits doesn't draw the same picture twice. */
+  private pendingImages = new Set<string>();
+
+  /**
+   * The model asks for pictures by description (a board image node, a slide add_image); Muse Image draws them
+   * in the background while the rest of the response keeps streaming, then the URL lands as a normal op.
+   */
+  private illustrate(op: Op, meta: { turnId?: string }) {
+    const board = this.doc.kind === "board" ? this.doc : undefined;
+    let prompt: string | undefined;
+    let finish: ((url: string) => Op) | undefined;
+    // Board pictures: any image node that has a description but no drawing yet (new, redescribed, or "redraw").
+    const nodeId = op.type === "add_node" || op.type === "set_node" ? op.id : undefined;
+    const node = nodeId ? board?.nodes.find((n) => n.id === nodeId) : undefined;
+    const boardImage = !!node && node.shape === "image" && !node.url && !!node.text.trim() && !this.pendingImages.has(node.id);
+    if (boardImage && node) {
+      // Diagrams get whiteboard-style line art so drawings sit naturally among sticky notes and shapes.
+      prompt =
+        board?.template === "blueprint"
+          ? node.text
+          : `${node.text}. Hand-drawn whiteboard sketch: clean black marker line art with a few flat accent colours, plain white background, no text.`;
+      const id = node.id;
+      finish = (url) => {
+        this.pendingImages.delete(id);
+        return { type: "set_node", id, url };
+      };
+    } else if (op.type === "add_image" && !op.url) {
+      prompt = `${op.prompt}. High quality editorial illustration for a presentation slide, no text.`;
+      finish = (url) => ({ type: "set_image_url", slideId: op.slideId, elementId: op.elementId, url });
+    }
+    if (!prompt || !finish || !imagesEnabled) return;
+    // Over the limit, wait for a slot rather than dropping the picture (it would show "drawing…" forever).
+    if (this.drawing >= MAX_PARALLEL_IMAGES) {
+      setTimeout(() => this.illustrate(op, meta), 1500);
+      return;
+    }
+    if (boardImage && node) this.pendingImages.add(node.id);
+    this.drawing++;
+    generateImage(prompt)
+      .then((url) => this.apply(finish(url), "ai", meta))
+      .catch((err) => {
+        if (nodeId) this.pendingImages.delete(nodeId);
+        console.error(`[room ${this.id}] image generation failed`, err);
+        this.broadcast({ type: "error", message: "Muse couldn't draw one of the images. Try asking again." });
+      })
+      .finally(() => this.drawing--);
   }
 
   /** An add_slide for a content op that targets a slide which does not exist yet. */
