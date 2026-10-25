@@ -147,10 +147,14 @@ export function useListen(roomId: string, userId: string) {
           }
           display.getVideoTracks()[0]?.addEventListener("ended", stop);
         }
-        const mic = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-        streams.push(mic);
+        // With a shared meeting the laptop mic would also hear the call through the speakers, so everything
+        // arrived twice. The meeting audio is the only source then; push-to-talk still works for your own voice.
+        if (!withCall) {
+          const mic = await navigator.mediaDevices.getUserMedia({
+            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+          streams.push(mic);
+        }
       } catch (err) {
         streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
         void ctx.close();
@@ -170,7 +174,7 @@ export function useListen(roomId: string, userId: string) {
         node.port.onmessage = (e: MessageEvent<Float32Array>) => {
           feed(e.data);
           // A cheap level for the button, about 20 times a second.
-          if (source === "mic" && ++frame % 20 === 0) {
+          if (++frame % 20 === 0) {
             let sum = 0;
             for (const s of e.data) sum += s * s;
             useVoice.setState({ listenLevel: Math.min(1, Math.sqrt(sum / e.data.length) * 6) });
@@ -178,8 +182,7 @@ export function useListen(roomId: string, userId: string) {
         };
         ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())).connect(node);
       };
-      attach(streams.at(-1)!, "mic");
-      if (withCall) attach(streams[0]!, "call");
+      attach(streams[0]!, withCall ? "call" : "mic");
       live.current = { ctx, streams, flushes };
       useVoice.setState({ listen: withCall ? "call" : "mic" });
     },
