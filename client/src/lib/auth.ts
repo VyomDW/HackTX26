@@ -59,8 +59,10 @@ export async function signIn(mode: "login" | "signup", username: string, passwor
 }
 
 export async function rename(name: string) {
-  const { account } = await accountCall("/auth/me", { name }, "PATCH");
-  useAuth.setState({ account });
+  const { account, token } = await accountCall("/auth/me", { name }, "PATCH");
+  // The session token carries the name, so a rename comes with a fresh one.
+  if (token) writeToken(token);
+  useAuth.setState(token ? { account, token } : { account });
 }
 
 /** Drops the session here without telling the server (it already rejected it). */

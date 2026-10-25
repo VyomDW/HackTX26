@@ -40,7 +40,7 @@ app.get("/health/ai", async () => diagnoseMuse());
 app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {
   const input = Credentials.safeParse(req.body);
   if (!input.success) return reply.code(400).send({ error: input.error.issues[0]?.message ?? "Check your details." });
-  const result = signUp(input.data);
+  const result = await signUp(input.data);
   if ("error" in result) return reply.code(409).send({ error: result.error });
   return { account: result.account, token: result.token };
 });
@@ -48,7 +48,7 @@ app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {
 app.post<{ Body: unknown }>("/auth/login", async (req, reply) => {
   const input = Credentials.safeParse(req.body);
   if (!input.success) return reply.code(401).send({ error: "Wrong username or password." });
-  const result = signIn(input.data);
+  const result = await signIn(input.data);
   if ("error" in result) return reply.code(401).send({ error: result.error });
   return result;
 });
@@ -63,7 +63,7 @@ app.patch<{ Body: { name?: string } }>("/auth/me", async (req, reply) => {
   if (!account) return;
   const name = req.body?.name?.trim().slice(0, 32);
   if (!name) return reply.code(400).send({ error: "Enter a name." });
-  return { account: rename(account.id, name) };
+  return rename(account, name);
 });
 
 app.post("/auth/logout", async (req) => {
