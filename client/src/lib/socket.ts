@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { ServerMessage, type ClientMessage, type DocKind } from "@hacktx/shared";
 import { useDeck } from "@/store/deck";
+import { forget, useAuth } from "@/lib/auth";
 import { homeUrl } from "@/lib/kinds";
 import { useVoice } from "@/store/voice";
 
@@ -22,7 +23,7 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
       ws.onopen = () => {
         attempt = 0;
         setConnected(true);
-        ws.send(JSON.stringify({ type: "join", roomId, userId, name, kind } satisfies ClientMessage));
+        ws.send(JSON.stringify({ type: "join", roomId, token: useAuth.getState().token ?? "", kind } satisfies ClientMessage));
       };
       ws.onmessage = (ev) => {
         const parsed = ServerMessage.safeParse(JSON.parse(ev.data));
@@ -40,6 +41,8 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
       ws.onclose = (e) => {
         // the file was deleted (here or by someone else): back to the home screen
         if (e.code === 4404) return location.assign(homeUrl());
+        // the session ended: show the sign-in screen, which comes back to this file
+        if (e.code === 4401) return forget();
         setConnected(false);
         useDeck.getState().setAiStatus("idle");
         if (!closed) retry = setTimeout(connect, Math.min(500 * 2 ** attempt++, 8000));

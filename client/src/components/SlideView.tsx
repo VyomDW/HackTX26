@@ -269,7 +269,7 @@ export function MusePointer() {
       <svg width="24" height="24" viewBox="0 0 24 24" className="rotate-90 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" aria-hidden>
         <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" fill="white" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="hand mt-4 text-[20px] font-bold leading-none text-[#ea580c]">nodepad</span>
+      <span className="hand mt-4 text-[20px] font-bold leading-none text-[#ea580c]">node</span>
     </span>
   );
 }

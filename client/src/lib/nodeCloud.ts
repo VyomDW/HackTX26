@@ -8,12 +8,14 @@ export interface CloudFile {
   title: string;
   updatedAt: number;
   online: number;
+  /** False for a file someone else made and shared with you. */
+  mine?: boolean;
 }
 
 export interface CloudOptions {
   files: CloudFile[];
   openFile: (id: string) => void;
-  /** Delete a file everywhere; resolves once the server has removed it. */
+  /** Delete a file (everywhere if it's yours, else just from your list); resolves once the server is done. */
   deleteFile: (id: string) => Promise<void>;
   /** Start a new file in a tool, optionally with a first request for nodepad. */
   newFile: (tool: string, prompt?: string) => void;
@@ -391,13 +393,13 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
       c.style.setProperty("--tilt", (i % 2 ? 3 : -3) + "deg");
       let pv = preview(tool, f, i);
       if (s === ROOT) pv = pv.replace(/<\/div>$/, `<span class="kind"><span class="ki">${iconSvg(tool.id)}</span>${tool.name}</span></div>`);
-      c.innerHTML = `${pv}<span class="nm">${esc(f.title)}</span><span class="mt">${f.online > 0 ? `<span class="live">${f.online} editing</span>` : ""}<span class="t">${ago(f.updatedAt)}</span></span><span class="del" role="button" tabindex="0" title="Delete file" aria-label="Delete ${esc(f.title)}">${TRASH}</span>`;
+      c.innerHTML = `${pv}<span class="nm">${esc(f.title)}</span><span class="mt">${f.online > 0 ? `<span class="live">${f.online} editing</span>` : ""}<span class="t">${ago(f.updatedAt)}</span></span><span class="del" role="button" tabindex="0" title="${f.mine === false ? "Remove from my files" : "Delete file"}" aria-label="Delete ${esc(f.title)}">${TRASH}</span>`;
       c.onclick = (e) => { e.stopPropagation(); opts.openFile(f.id); };
       const del = c.querySelector(".del");
       const remove = (e) => {
         e.stopPropagation();
         e.preventDefault();
-        if (!confirm(`Delete "${f.title}"? This removes it for everyone.`)) return;
+        if (!confirm(f.mine === false ? `Remove "${f.title}" from your files? It stays shared with everyone else.` : `Delete "${f.title}"? This removes it for everyone.`)) return;
         opts.deleteFile(f.id).then(() => {
           files = files.filter((x) => x.id !== f.id);
           tool.files = tool.files.filter((x) => x.id !== f.id);

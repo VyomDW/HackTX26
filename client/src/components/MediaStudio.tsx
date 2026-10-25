@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Clapperboard, Download, Loader2, Music, TriangleAlert, X } from "lucide-react";
+import { api } from "@/lib/auth";
 import { homeUrl } from "@/lib/kinds";
 import { cn } from "@/lib/utils";
 import { Logo } from "./Logo";
@@ -57,7 +58,7 @@ export function MediaStudio({ initialTab, initialPrompt }: { initialTab: Tab; in
 
   const load = useCallback(async () => {
     try {
-      const r = (await fetch("/api/media").then((res) => res.json())) as { enabled: boolean; jobs: MediaJob[] };
+      const r = (await api("/media").then((res) => res.json())) as { enabled: boolean; jobs: MediaJob[] };
       setEnabled(r.enabled);
       setJobs(r.jobs);
     } catch {
@@ -104,7 +105,7 @@ export function MediaStudio({ initialTab, initialPrompt }: { initialTab: Tab; in
     setSending(true);
     setError(undefined);
     try {
-      const res = await fetch("/api/media", {
+      const res = await api("/media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: tab, prompt: text.trim(), duration, aspectRatio }),
@@ -122,7 +123,7 @@ export function MediaStudio({ initialTab, initialPrompt }: { initialTab: Tab; in
 
   const remove = async (job: MediaJob) => {
     setJobs((all) => all.filter((j) => j.id !== job.id));
-    const res = await fetch(`/api/media/${job.id}`, { method: "DELETE" }).catch(() => undefined);
+    const res = await api(`/media/${job.id}`, { method: "DELETE" }).catch(() => undefined);
     if (!res?.ok) void load();
   };
 

@@ -4,7 +4,8 @@ import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
-import { deleteRoom, getRoom, listRooms, type Room } from "./rooms/room";
+import { accountOf, Credentials, rename, requireAccount, signIn, signOut, signUp, tokenOf } from "./auth";
+import { claimUnowned, deleteRoom, getRoom, grantAccess, listRooms, revokeAccess, type Room } from "./rooms/room";
 import { removeSaved } from "./rooms/store";
 import { transcribe, transcribeTurns } from "./integrations/voice";
 import { listenerFor } from "./rooms/listen";
@@ -31,7 +32,45 @@ await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
 
+/** Accounts: sign up, sign in, who am I, rename, sign out. Responses carry the session token the browser keeps. */
+app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {
+  const input = Credentials.safeParse(req.body);
+  if (!input.success) return reply.code(400).send({ error: input.error.issues[0]?.message ?? "Check your details." });
+  const result = signUp(input.data);
+  if ("error" in result) return reply.code(409).send({ error: result.error });
+  if (result.isFirst) claimUnowned(result.account.id);
+  return { account: result.account, token: result.token };
+});
+
+app.post<{ Body: unknown }>("/auth/login", async (req, reply) => {
+  const input = Credentials.safeParse(req.body);
+  if (!input.success) return reply.code(401).send({ error: "Wrong username or password." });
+  const result = signIn(input.data);
+  if ("error" in result) return reply.code(401).send({ error: result.error });
+  return result;
+});
+
+app.get("/auth/me", async (req, reply) => {
+  const account = requireAccount(req, reply);
+  return account && { account };
+});
+
+app.patch<{ Body: { name?: string } }>("/auth/me", async (req, reply) => {
+  const account = requireAccount(req, reply);
+  if (!account) return;
+  const name = req.body?.name?.trim().slice(0, 32);
+  if (!name) return reply.code(400).send({ error: "Enter a name." });
+  return { account: rename(account.id, name) };
+});
+
+app.post("/auth/logout", async (req) => {
+  const token = tokenOf(req);
+  if (token) signOut(token);
+  return { ok: true };
+});
+
 app.post<{ Body: { prompt?: string; quality?: MeshyQuality } }>("/studio/meshy/tasks", async (req, reply) => {
+  if (!requireAccount(req, reply)) return;
   const prompt = req.body?.prompt?.trim();
   if (!prompt || prompt.length > 800) return reply.code(400).send({ error: "Enter a model description up to 800 characters." });
   const quality = req.body?.quality === "medium" ? "medium" : "high";
@@ -40,6 +79,7 @@ app.post<{ Body: { prompt?: string; quality?: MeshyQuality } }>("/studio/meshy/t
 });
 
 app.post<{ Body: { previewTaskId?: string; prompt?: string } }>("/studio/meshy/refine", async (req, reply) => {
+  if (!requireAccount(req, reply)) return;
   const previewTaskId = req.body?.previewTaskId?.trim();
   const prompt = req.body?.prompt?.trim();
   if (!previewTaskId || !prompt || prompt.length > 800) return reply.code(400).send({ error: "A completed preview and prompt are required." });
@@ -72,6 +112,7 @@ app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
 app.get("/media", async () => ({ enabled: mediaEnabled(), jobs: await listMedia() }));
 
 app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRatio?: string } }>("/media", async (req, reply) => {
+  if (!requireAccount(req, reply)) return;
   const { kind, prompt, duration, aspectRatio } = req.body ?? {};
   if (!mediaEnabled()) return reply.code(503).send({ error: "Add REPLICATE_API_TOKEN to server/.env to generate media." });
   if (kind !== "music" && kind !== "video") return reply.code(400).send({ error: "kind must be music or video" });
@@ -84,9 +125,10 @@ app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRati
   return startMedia(kind as MediaKind, text, options);
 });
 
-app.delete<{ Params: { id: string } }>("/media/:id", async (req, reply) =>
-  (await removeMedia(req.params.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." }),
-);
+app.delete<{ Params: { id: string } }>("/media/:id", async (req, reply) => {
+  if (!requireAccount(req, reply)) return;
+  return (await removeMedia(req.params.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." });
+});
 
 const MEDIA_TYPES: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg" };
 
@@ -99,9 +141,12 @@ app.get<{ Params: { id: string; name: string }; Querystring: { download?: string
   return reply.type(MEDIA_TYPES[ext] ?? "application/octet-stream").send(createReadStream(full));
 });
 
-/** The workspace file list for the home screen, most recently edited first. */
-app.get("/docs", async () =>
-  listRooms()
+/** The signed-in account's files for the home screen (theirs and ones shared with them), most recently edited first. */
+app.get("/docs", async (req, reply) => {
+  const account = requireAccount(req, reply);
+  if (!account) return;
+  return listRooms()
+    .filter((r) => r.access.has(account.id))
     .map((r) => ({
       id: r.id,
       kind: r.kind,
@@ -109,14 +154,24 @@ app.get("/docs", async () =>
       title: r.doc.title,
       updatedAt: r.updatedAt,
       online: r.members.size,
+      mine: r.ownerId === account.id,
     }))
-    .sort((a, b) => b.updatedAt - a.updatedAt),
-);
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+});
 
-app.delete<{ Params: { id: string } }>("/docs/:id", async (req) => {
-  deleteRoom(req.params.id);
-  removeSaved(req.params.id);
-  return { ok: true };
+/** The owner deletes the file for everyone; anyone else just removes it from their own list. */
+app.delete<{ Params: { id: string } }>("/docs/:id", async (req, reply) => {
+  const account = requireAccount(req, reply);
+  if (!account) return;
+  const room = listRooms().find((r) => r.id === req.params.id);
+  if (!room) return { ok: true };
+  if (room.ownerId && room.ownerId !== account.id) {
+    revokeAccess(room, account.id);
+    return { ok: true, removed: "list" };
+  }
+  deleteRoom(room.id);
+  removeSaved(room.id);
+  return { ok: true, removed: "file" };
 });
 
 app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 * 1024 }, (_req, body, done) => done(null, body));
@@ -130,9 +185,12 @@ app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 *
 app.post<{ Params: { roomId: string }; Querystring: { userId?: string; mode?: string; source?: string } }>(
   "/rooms/:roomId/voice",
   async (req, reply) => {
-    const { userId, mode, source } = req.query;
-    if (!userId || !Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return reply.code(400).send({ error: "expected audio body and userId" });
+    const account = requireAccount(req, reply);
+    if (!account) return;
+    const userId = account.id;
+    const { mode, source } = req.query;
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return reply.code(400).send({ error: "expected audio body" });
     }
     const mime = req.headers["content-type"] ?? "audio/wav";
     try {
@@ -140,12 +198,12 @@ app.post<{ Params: { roomId: string }; Querystring: { userId?: string; mode?: st
       if (mode === "listen") {
         const fromCall = source === "call";
         const lines = await transcribeTurns(req.body, mime, fromCall);
-        const name = [...room.members].find((m) => m.userId === userId)?.name ?? "Guest";
+        const name = account.name;
         if (lines.length) listenerFor(room).hear(lines, fromCall ? `${userId}:call` : userId, fromCall ? "On the call" : name);
         return { text: lines.join(" ") };
       }
       const text = await transcribe(req.body, mime);
-      if (text) void room.prompt(text, userId);
+      if (text) void room.prompt(text, userId, account.name);
       return { text };
     } catch (err) {
       req.log.error(err);
@@ -173,9 +231,13 @@ app.register(async (scope) => {
       }
       const msg = parsed.data;
       if (msg.type === "join") {
+        // Anyone signed in can join a file by its link; that's how sharing works. It then shows in their files.
+        const account = accountOf(msg.token);
+        if (!account) return socket.close(4401, "sign in");
         if (room && member) room.leave(member);
         room = getRoom(msg.roomId, msg.kind);
-        member = { socket, userId: msg.userId, name: msg.name };
+        grantAccess(room, account.id);
+        member = { socket, userId: account.id, name: account.name };
         room.join(member);
         return;
       }

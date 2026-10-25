@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "@/lib/auth";
 import { downsample, encodeWav } from "@/lib/wav";
 
-const apiUrl = import.meta.env.VITE_API_URL || "/api";
 const TARGET_RATE = 16000;
 const MIN_CLIP_MS = 300;
 /** Audio kept from just before the press so the first syllable isn't clipped. */
@@ -107,7 +107,7 @@ export function usePushToTalk(roomId: string, userId: string) {
     setState("uploading");
     try {
       const wav = encodeWav(downsample(samples, m.ctx.sampleRate, TARGET_RATE), TARGET_RATE);
-      const res = await fetch(`${apiUrl}/rooms/${encodeURIComponent(roomId)}/voice?userId=${encodeURIComponent(userId)}`, {
+      const res = await api(`/rooms/${encodeURIComponent(roomId)}/voice`, {
         method: "POST",
         headers: { "Content-Type": "audio/wav" },
         body: wav,

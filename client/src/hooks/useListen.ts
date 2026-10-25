@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { api } from "@/lib/auth";
 import { downsample, encodeWav } from "@/lib/wav";
 import { useVoice } from "@/store/voice";
 
-const apiUrl = import.meta.env.VITE_API_URL || "/api";
 const TARGET_RATE = 16000;
 /** Silence this long ends an utterance. */
 const HANGOVER_MS = 700;
@@ -96,9 +96,9 @@ export function useListen(roomId: string, userId: string) {
   const upload = useCallback(
     async (samples: Float32Array, rate: number, source: Source) => {
       const wav = encodeWav(downsample(samples, rate, TARGET_RATE), TARGET_RATE);
-      const q = `userId=${encodeURIComponent(userId)}&mode=listen&source=${source}`;
+      const q = `mode=listen&source=${source}`;
       try {
-        const res = await fetch(`${apiUrl}/rooms/${encodeURIComponent(roomId)}/voice?${q}`, {
+        const res = await api(`/rooms/${encodeURIComponent(roomId)}/voice?${q}`, {
           method: "POST",
           headers: { "Content-Type": "audio/wav" },
           body: wav,

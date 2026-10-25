@@ -24,8 +24,8 @@ export type Caption = z.infer<typeof Caption>;
 
 /** Browser -> server. */
 export const ClientMessage = z.discriminatedUnion("type", [
-  /** kind is only used when the room does not exist yet. */
-  z.object({ type: z.literal("join"), roomId: z.string(), userId: z.string(), name: z.string().optional(), kind: DocKind.optional() }),
+  /** kind is only used when the room does not exist yet. token is the sign-in session; the server takes the user and name from it. */
+  z.object({ type: z.literal("join"), roomId: z.string(), token: z.string(), userId: z.string().optional(), name: z.string().optional(), kind: DocKind.optional() }),
   z.object({ type: z.literal("prompt"), text: z.string().trim().min(1).max(2000) }),
   z.object({ type: z.literal("undo"), opId: z.string() }),
   /** Reverts every op from one AI response. */

@@ -59,6 +59,9 @@ export class Room {
   conversation: { role: "user" | "assistant"; text: string }[] = [];
   turns: Turn[] = [];
   updatedAt = Date.now();
+  ownerId?: string;
+  /** Account ids that see this file on their home screen. */
+  access = new Set<string>();
   private inflight?: { controller: AbortController; turnId: string };
   /** True while an AI response is streaming. */
   get busy() {
@@ -399,6 +402,30 @@ export const getRoom = (id: string, kind: DocKind = "slides") => {
 };
 
 export const listRooms = () => [...rooms.values()];
+
+/** Records that an account opened a file: the first account to open it owns it, and it joins their file list. */
+export const grantAccess = (room: Room, userId: string) => {
+  if (room.ownerId && room.access.has(userId)) return;
+  room.ownerId ??= userId;
+  room.access.add(userId);
+  // keep updatedAt, so opening a shared link doesn't reorder everyone's recent files
+  const { updatedAt } = room;
+  scheduleSave(room);
+  room.updatedAt = updatedAt;
+};
+
+/** Takes a file off one account's list without deleting it for anyone else. */
+export const revokeAccess = (room: Room, userId: string) => {
+  room.access.delete(userId);
+  const { updatedAt } = room;
+  scheduleSave(room);
+  room.updatedAt = updatedAt;
+};
+
+/** Gives files saved before accounts existed to the server's first account, so they don't disappear. */
+export const claimUnowned = (userId: string) => {
+  for (const room of rooms.values()) if (!room.ownerId) grantAccess(room, userId);
+};
 
 /** Removes a room and sends anyone still in it back to the home screen (close code 4404). */
 export const deleteRoom = (id: string) => {
