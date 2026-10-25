@@ -5,6 +5,8 @@ import type { Room } from "./room";
 
 /** Lines heard within this window are judged together, so a request split across a pause stays whole. */
 const SETTLE_MS = 1200;
+/** Nonstop talk never leaves a pause, so lines are judged at least this often anyway. */
+const MAX_WAIT_MS = 4000;
 /** How much conversation the filter sees. */
 const KEEP_MS = 3 * 60_000;
 /** Speakers on a call are often picked up by several open mics; the copy heard first wins. */
@@ -23,7 +25,8 @@ anything about lunch, schedules or the call itself, and requests already handled
 Reply with one JSON object and nothing else:
 {"act": false}
 or
-{"act": true, "request": "<one self-contained instruction for Muse, resolving words like 'that' or 'what Sam said' from context>"}`;
+{"act": true, "request": "<one self-contained instruction for Muse, resolving words like 'that' or 'what Sam said' from context>", "lines": [<numbers of the NEW lines the request came from>]}
+If the NEW lines hold several separate requests, combine them into one numbered instruction.`;
 
 interface Heard extends Caption {
   userId: string;
@@ -70,8 +73,10 @@ class Listener {
         this.act([line], direct);
       }
     }
+    const oldest = this.heard.find((h) => !h.judged)?.ts;
+    if (oldest === undefined) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.judge(), SETTLE_MS);
+    this.timer = setTimeout(() => void this.judge(), Math.min(SETTLE_MS, Math.max(0, oldest + MAX_WAIT_MS - now)));
   }
 
   private async judge() {
@@ -86,7 +91,7 @@ class Listener {
     try {
       const transcript = this.heard
         .slice(-25)
-        .map((h) => `${fresh.includes(h) ? "NEW " : h.acted ? "[done] " : ""}${h.speaker}: ${h.text}`)
+        .map((h) => `${fresh.includes(h) ? `NEW ${fresh.indexOf(h) + 1}. ` : h.acted ? "[done] " : ""}${h.speaker}: ${h.text}`)
         .join("\n");
       let reply = "";
       for await (const chunk of callMuse([
@@ -94,8 +99,12 @@ class Listener {
         { role: "user", content: transcript },
       ]))
         reply += chunk;
-      const decision = JSON.parse(/\{[\s\S]*\}/.exec(reply)?.[0] ?? "{}") as { act?: boolean; request?: string };
-      if (decision.act && decision.request?.trim()) this.act(fresh, decision.request.trim());
+      const decision = JSON.parse(/\{[\s\S]*\}/.exec(reply)?.[0] ?? "{}") as { act?: boolean; request?: string; lines?: number[] };
+      if (decision.act && decision.request?.trim()) {
+        // Only the lines the request came from light up as acted on; chatter around them stays plain.
+        const from = fresh.filter((_, i) => decision.lines?.includes(i + 1));
+        this.act(from.length ? from : fresh, decision.request.trim());
+      }
     } catch (err) {
       // Without the filter we can't tell chatter from requests, so stay quiet rather than edit on everything.
       console.warn(`[room ${this.room.id}] listen filter failed`, err);
@@ -104,6 +113,13 @@ class Listener {
     }
   }
 
+  /**
+   * Requests from conversation wait for the edit in progress instead of interrupting it, so a long call
+   * keeps landing changes one batch after another. Typed and push-to-talk requests still interrupt.
+   */
+  private queue: { request: string; userId: string; speaker: string }[] = [];
+  private running = false;
+
   private act(lines: Heard[], request: string) {
     const by = lines.at(-1)!;
     for (const l of lines) {
@@ -111,7 +127,24 @@ class Listener {
       this.send(l);
     }
     // Call audio is filed under its sharer's id plus ":call" so the echo check can tell it from their mic.
-    void this.room.prompt(request, by.userId.replace(/:call$/, ""), by.speaker);
+    this.queue.push({ request, userId: by.userId.replace(/:call$/, ""), speaker: by.speaker });
+    void this.drain();
+  }
+
+  private async drain() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      while (this.queue.length) {
+        while (this.room.busy) await new Promise((r) => setTimeout(r, 300));
+        const batch = this.queue.splice(0);
+        const request = batch.length === 1 ? batch[0]!.request : batch.map((b, i) => `${i + 1}. ${b.request}`).join("\n");
+        const by = batch.at(-1)!;
+        await this.room.prompt(request, by.userId, by.speaker);
+      }
+    } finally {
+      this.running = false;
+    }
   }
 
   private send({ id, speaker, text, ts, acted }: Heard) {
