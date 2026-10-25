@@ -476,7 +476,7 @@ The free plan's disk is not persistent, so files and accounts reset when the ser
 
 | Browser → server | Purpose |
 | --- | --- |
-| `join` | Enter a room with your session `token` (creates it with the given kind if new; adds it to your files) |
+| `join` | Enter a room with your session `token`, plus the `invite` key from an Invite link for someone else's file (creates it with the given kind if new) |
 | `prompt` | Ask the AI for a change |
 | `ops` | Direct editor changes (one undo step) |
 | `undo` / `undo_turn` | Revert one op or a whole AI response |

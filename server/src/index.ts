@@ -6,7 +6,7 @@ import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
 import { diagnoseMuse } from "./integrations/muse";
 import { accountOf, Credentials, rename, requireAccount, signIn, signOut, signUp, tokenOf } from "./auth";
-import { claimUnowned, deleteRoom, getRoom, grantAccess, listRooms, revokeAccess, type Room } from "./rooms/room";
+import { admit, deleteRoom, findRoom, getRoom, listRooms, revokeAccess, type Room } from "./rooms/room";
 import { removeSaved } from "./rooms/store";
 import { transcribe, transcribeTurns } from "./integrations/voice";
 import { listenerFor } from "./rooms/listen";
@@ -42,7 +42,6 @@ app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {
   if (!input.success) return reply.code(400).send({ error: input.error.issues[0]?.message ?? "Check your details." });
   const result = signUp(input.data);
   if ("error" in result) return reply.code(409).send({ error: result.error });
-  if (result.isFirst) claimUnowned(result.account.id);
   return { account: result.account, token: result.token };
 });
 
@@ -113,10 +112,14 @@ app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
 });
 
 /** Media studio: every music and video generation, newest first, and whether a Replicate key is set. */
-app.get("/media", async () => ({ enabled: mediaEnabled(), jobs: await listMedia() }));
+app.get("/media", async (req, reply) => {
+  const account = requireAccount(req, reply);
+  return account && { enabled: mediaEnabled(), jobs: await listMedia(account.id) };
+});
 
 app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRatio?: string } }>("/media", async (req, reply) => {
-  if (!requireAccount(req, reply)) return;
+  const account = requireAccount(req, reply);
+  if (!account) return;
   const { kind, prompt, duration, aspectRatio } = req.body ?? {};
   if (!mediaEnabled()) return reply.code(503).send({ error: "Add REPLICATE_API_TOKEN to server/.env to generate media." });
   if (kind !== "music" && kind !== "video") return reply.code(400).send({ error: "kind must be music or video" });
@@ -126,12 +129,13 @@ app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRati
     duration: duration === 10 ? 10 : 5,
     aspectRatio: aspectRatio === "9:16" || aspectRatio === "1:1" ? aspectRatio : "16:9",
   };
-  return startMedia(kind as MediaKind, text, options);
+  return startMedia(account.id, kind as MediaKind, text, options);
 });
 
 app.delete<{ Params: { id: string } }>("/media/:id", async (req, reply) => {
-  if (!requireAccount(req, reply)) return;
-  return (await removeMedia(req.params.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." });
+  const account = requireAccount(req, reply);
+  if (!account) return;
+  return (await removeMedia(req.params.id, account.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." });
 });
 
 const MEDIA_TYPES: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg" };
@@ -167,9 +171,9 @@ app.get("/docs", async (req, reply) => {
 app.delete<{ Params: { id: string } }>("/docs/:id", async (req, reply) => {
   const account = requireAccount(req, reply);
   if (!account) return;
-  const room = listRooms().find((r) => r.id === req.params.id);
-  if (!room) return { ok: true };
-  if (room.ownerId && room.ownerId !== account.id) {
+  const room = findRoom(req.params.id);
+  if (!room || !room.access.has(account.id)) return reply.code(404).send({ error: "No such file." });
+  if (room.ownerId !== account.id) {
     revokeAccess(room, account.id);
     return { ok: true, removed: "list" };
   }
@@ -197,8 +201,9 @@ app.post<{ Params: { roomId: string }; Querystring: { userId?: string; mode?: st
       return reply.code(400).send({ error: "expected audio body" });
     }
     const mime = req.headers["content-type"] ?? "audio/wav";
+    const room = findRoom(req.params.roomId);
+    if (!room || !room.access.has(userId)) return reply.code(404).send({ error: "No such file." });
     try {
-      const room = getRoom(req.params.roomId);
       if (mode === "listen") {
         const fromCall = source === "call";
         const lines = await transcribeTurns(req.body, mime, fromCall);
@@ -235,12 +240,14 @@ app.register(async (scope) => {
       }
       const msg = parsed.data;
       if (msg.type === "join") {
-        // Anyone signed in can join a file by its link; that's how sharing works. It then shows in their files.
+        // Only the owner, or someone holding the file's Invite link, gets in. It then shows in their files.
         const account = accountOf(msg.token);
         if (!account) return socket.close(4401, "sign in");
+        const existing = findRoom(msg.roomId);
+        if (existing && !admit(existing, account.id, msg.invite)) return socket.close(4403, "no access");
         if (room && member) room.leave(member);
-        room = getRoom(msg.roomId, msg.kind);
-        grantAccess(room, account.id);
+        room = existing ?? getRoom(msg.roomId, msg.kind);
+        admit(room, account.id);
         member = { socket, userId: account.id, name: account.name };
         room.join(member);
         return;

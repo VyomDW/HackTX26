@@ -92,7 +92,7 @@ function Workspace({
   onRename: (name: string) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
-  const { send, connected } = useRoomSocket(roomId, userId, name, kind);
+  const { send, connected, denied } = useRoomSocket(roomId, userId, name, kind);
   const doc = useDoc((s) => s.doc);
   const loaded = useDoc((s) => s.loaded);
   const presenting = useEditor((s) => s.presenting);
@@ -125,6 +125,22 @@ function Workspace({
     send({ type: "prompt", text });
     useEditor.setState({ follow: true });
   };
+
+  if (denied)
+    return (
+      <div className="ink">
+        <div className="stage-bg grid h-dvh place-items-center p-4 font-ui text-ink">
+          <div className="ink-page taped w-full max-w-sm space-y-3 rounded-xl px-6 pb-6 pt-8">
+            <Logo />
+            <h1 className="text-xl font-bold">You don't have access to this file</h1>
+            <p className="text-sm text-dim">It belongs to someone else. Ask them to click Invite and send you the link.</p>
+            <a href={homeUrl()} className="ink-btn inline-block rounded-lg bg-[var(--ink)] px-3 py-2 text-sm font-bold text-[var(--page)]">
+              Go to my files
+            </a>
+          </div>
+        </div>
+      </div>
+    );
 
   return (
     <>
@@ -191,6 +207,7 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
   const loaded = useDoc((s) => s.loaded);
   const busy = useDoc(isBusy);
   const [copied, setCopied] = useState(false);
+  const invite = useDoc((s) => s.invite);
   const [title, setTitle] = useState(doc.title);
   useEffect(() => setTitle(doc.title), [doc.title]);
   const K = metaOf(doc.kind, doc.kind === "board" ? doc.template : undefined);
@@ -258,7 +275,8 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
       </div>
       <button
         onClick={() => {
-          void navigator.clipboard?.writeText(`${location.origin}${location.pathname}?room=${encodeURIComponent(roomId)}`);
+          if (!invite) return;
+          void navigator.clipboard?.writeText(`${location.origin}${location.pathname}?room=${encodeURIComponent(roomId)}&invite=${encodeURIComponent(invite)}`);
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}

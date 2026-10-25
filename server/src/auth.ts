@@ -69,7 +69,7 @@ function startSession(userId: string) {
   return token;
 }
 
-/** Creates an account and signs it in. `isFirst` tells the caller this is the server's first account. */
+/** Creates an account and signs it in. */
 export function signUp(input: z.infer<typeof Credentials>) {
   if (store.users.some((u) => u.username === input.username)) return { error: "That username is taken." } as const;
   const salt = randomBytes(16).toString("hex");
@@ -81,9 +81,8 @@ export function signUp(input: z.infer<typeof Credentials>) {
     hash: hashOf(input.password, salt),
     createdAt: Date.now(),
   };
-  const isFirst = store.users.length === 0;
   store.users.push(user);
-  return { account: publicOf(user), token: startSession(user.id), isFirst } as const;
+  return { account: publicOf(user), token: startSession(user.id) } as const;
 }
 
 export function signIn(input: z.infer<typeof Credentials>) {

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import {
   applyOp,
@@ -60,8 +60,10 @@ export class Room {
   turns: Turn[] = [];
   updatedAt = Date.now();
   ownerId?: string;
-  /** Account ids that see this file on their home screen. */
+  /** Account ids allowed to open this file; it shows on each one's home screen. */
   access = new Set<string>();
+  /** Secret in the Invite link. Knowing the file id alone doesn't let anyone in. */
+  inviteKey = randomBytes(12).toString("base64url");
   private inflight?: { controller: AbortController; turnId: string };
   /** True while an AI response is streaming. */
   get busy() {
@@ -91,6 +93,7 @@ export class Room {
   private sendSnapshot(member: Member) {
     this.send(member.socket, {
       type: "snapshot",
+      invite: this.inviteKey,
       doc: this.doc,
       history: this.history.map((h) => h.envelope),
       turns: this.turns,
@@ -475,15 +478,23 @@ export const getRoom = (id: string, kind: DocKind = "slides") => {
 
 export const listRooms = () => [...rooms.values()];
 
-/** Records that an account opened a file: the first account to open it owns it, and it joins their file list. */
-export const grantAccess = (room: Room, userId: string) => {
-  if (room.ownerId && room.access.has(userId)) return;
+/** A room if it exists, without creating it. */
+export const findRoom = (id: string) => rooms.get(id);
+
+/**
+ * Whether an account may open a file. Its creator owns it; anyone else needs the invite key from the
+ * owner's Invite link, and is then remembered so the file shows on their home screen.
+ */
+export const admit = (room: Room, userId: string, invite?: string) => {
+  if (room.access.has(userId)) return true;
+  if (room.ownerId && invite !== room.inviteKey) return false;
   room.ownerId ??= userId;
   room.access.add(userId);
   // keep updatedAt, so opening a shared link doesn't reorder everyone's recent files
   const { updatedAt } = room;
   scheduleSave(room);
   room.updatedAt = updatedAt;
+  return true;
 };
 
 /** Takes a file off one account's list without deleting it for anyone else. */
@@ -492,11 +503,6 @@ export const revokeAccess = (room: Room, userId: string) => {
   const { updatedAt } = room;
   scheduleSave(room);
   room.updatedAt = updatedAt;
-};
-
-/** Gives files saved before accounts existed to the server's first account, so they don't disappear. */
-export const claimUnowned = (userId: string) => {
-  for (const room of rooms.values()) if (!room.ownerId) grantAccess(room, userId);
 };
 
 /** Removes a room and sends anyone still in it back to the home screen (close code 4404). */

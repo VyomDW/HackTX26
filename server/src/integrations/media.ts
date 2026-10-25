@@ -27,6 +27,8 @@ export interface MediaFile {
 }
 export interface MediaJob {
   id: string;
+  /** Account that made it; only they see it in the studio. */
+  ownerId?: string;
   kind: MediaKind;
   prompt: string;
   options: MediaOptions;
@@ -63,9 +65,9 @@ const save = () => {
   return saving;
 };
 
-export async function listMedia(): Promise<MediaJob[]> {
+export async function listMedia(ownerId: string): Promise<MediaJob[]> {
   await loaded;
-  return [...jobs.values()].sort((a, b) => b.createdAt - a.createdAt);
+  return [...jobs.values()].filter((j) => j.ownerId === ownerId).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** What each model is asked for; inputs a model doesn't declare would be rejected, so only send known ones. */
@@ -92,9 +94,9 @@ async function replicate(pathname: string, init?: RequestInit, attempt = 0): Pro
   return body;
 }
 
-export async function startMedia(kind: MediaKind, prompt: string, options: MediaOptions): Promise<MediaJob> {
+export async function startMedia(ownerId: string, kind: MediaKind, prompt: string, options: MediaOptions): Promise<MediaJob> {
   await loaded;
-  const job: MediaJob = { id: randomUUID(), kind, prompt, options, status: "starting", createdAt: Date.now(), files: [] };
+  const job: MediaJob = { id: randomUUID(), ownerId, kind, prompt, options, status: "starting", createdAt: Date.now(), files: [] };
   jobs.set(job.id, job);
   void save();
   void generate(job).catch(async (err) => {
@@ -167,9 +169,10 @@ async function generate(job: MediaJob) {
 }
 
 /** Deletes a finished or failed generation and its files. Returns false if there is nothing to remove yet. */
-export async function removeMedia(id: string): Promise<boolean> {
+export async function removeMedia(id: string, ownerId: string): Promise<boolean> {
   await loaded;
   const job = jobs.get(id);
+  if (job?.ownerId !== ownerId) return false;
   // A running job would write its files after removal, so only settled ones can go.
   if (!job || (job.status !== "done" && job.status !== "failed")) return false;
   jobs.delete(id);
