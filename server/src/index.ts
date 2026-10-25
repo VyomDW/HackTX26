@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
@@ -11,9 +12,18 @@ import { IMAGE_DIR } from "./integrations/image";
 import { listMedia, mediaEnabled, mediaFile, removeMedia, startMedia, type MediaKind, type MediaOptions } from "./integrations/media";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createMeshyTask, getMeshyTask, meshyAssetPath, refineMeshyTask, type MeshyQuality } from "./integrations/meshy";
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: true,
+  // Vite removes /api during local development. Do the same before routing in
+  // production so the browser can use one origin for pages, HTTP and sockets.
+  rewriteUrl(request) {
+    const url = request.url ?? "/";
+    return url.startsWith("/api/") ? url.slice(4) : url;
+  },
+});
 
 await app.register(cors, { origin: env.clientOrigin });
 // Uploaded images travel inline as data URLs (downscaled in the browser), so allow larger frames.
@@ -184,5 +194,20 @@ app.register(async (scope) => {
     });
   });
 });
+
+if (process.env.NODE_ENV === "production") {
+  const clientRoot = fileURLToPath(new URL("../../client/dist/", import.meta.url));
+  await app.register(staticFiles, {
+    root: clientRoot,
+    maxAge: "30d",
+    immutable: true,
+  });
+
+  // index.html must be revalidated so a deployment never leaves visitors on
+  // an old asset manifest. Room and media state live in query parameters.
+  app.get("/", (_request, reply) =>
+    reply.sendFile("index.html", { maxAge: 0, immutable: false }),
+  );
+}
 
 await app.listen({ port: env.port, host: process.env.SERVER_HOST || "0.0.0.0" });
