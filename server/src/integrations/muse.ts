@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import OpenAI from "openai";
+import OpenAI, { APIError } from "openai";
 import { env } from "../env";
 
 export interface ChatMessage {
@@ -25,16 +25,37 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
     yield* mockStream(messages, signal);
     return;
   }
-  const stream = await client.chat.completions.create(
-    {
-      model: env.museModel,
-      messages,
-      stream: true,
-      // Reasoning delays the first token; minimal keeps the live build feeling instant.
-      reasoning_effort: "minimal",
-    },
-    { signal },
-  );
+  let stream: AsyncIterable<{ choices: { delta?: { content?: string | null } }[] }> | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      stream = await client.chat.completions.create(
+        {
+          model: env.museModel,
+          messages,
+          stream: true,
+          // Reasoning delays the first token; minimal keeps the live build feeling instant.
+          reasoning_effort: "minimal",
+        },
+        { signal },
+      );
+      break;
+    } catch (err) {
+      const transientModelMiss = err instanceof APIError && err.status === 404 && err.code === "model_not_found";
+      if (!transientModelMiss || attempt === 2 || signal?.aborted) throw err;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 500 * 2 ** attempt);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  if (!stream) return;
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;
     if (text) yield text;
