@@ -27,11 +27,21 @@ import { commit, useEditor } from "@/store/editor";
 
 const params = new URLSearchParams(location.search);
 const roomId = params.get("room");
+// Arriving from outside the site (a typed URL, bookmark or shared link) always opens on the landing page;
+// ?home is only honored when the app itself navigated there. Invite (?room) and media links still open directly.
+const cameFromSite = (() => {
+  try {
+    return !!document.referrer && new URL(document.referrer).origin === location.origin;
+  } catch {
+    return false;
+  }
+})();
+if (params.has("home") && !cameFromSite) history.replaceState(null, "", location.pathname);
 
 export default function App() {
   const account = useAuth((s) => s.account);
   const authStatus = useAuth((s) => s.status);
-  const [home, setHome] = useState(() => params.has("home"));
+  const [home, setHome] = useState(() => params.has("home") && cameFromSite);
   // the landing page's "go to node" pushes ?home, so Back returns to the landing page
   useEffect(() => {
     const onPop = () => setHome(new URLSearchParams(location.search).has("home"));

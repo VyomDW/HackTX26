@@ -428,7 +428,7 @@ flowchart LR
 2. Fill in the secrets it asks for: `MODEL_API_KEY`, `SERPAPI_KEY`, `MESHY_API_KEY`, `REPLICATE_API_TOKEN`.
 3. Every commit to `main` deploys automatically.
 
-The free plan's disk is not persistent, so files and accounts reset when the service restarts. Point `ROOM_DIR` and `AUTH_FILE` at a mounted disk to keep them.
+The service runs on the Starter plan with a 1 GB disk mounted at `server/data`, where accounts, files, images and media are saved. The free plan has no persistent disk, so on it everything resets on each deploy or idle spin-down.
 
 ---
 
