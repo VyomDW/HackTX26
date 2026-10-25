@@ -13,9 +13,14 @@ export interface CloudFile {
 export interface CloudOptions {
   files: CloudFile[];
   openFile: (id: string) => void;
+  /** Delete a file everywhere; resolves once the server has removed it. */
+  deleteFile: (id: string) => Promise<void>;
   /** Start a new file in a tool, optionally with a first request for nodepad. */
   newFile: (tool: string, prompt?: string) => void;
 }
+
+const TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
 // lucide-style icon paths, 24-unit grid; drawn both in HTML and onto node textures
 const ICON = {
@@ -109,7 +114,7 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
   });
   const ALL = TOOLS.concat(DEV);
   const byId = Object.fromEntries(ALL.map((t) => [t.id, t]));
-  const files = [...opts.files].sort((a, b) => b.updatedAt - a.updatedAt);
+  let files = [...opts.files].sort((a, b) => b.updatedAt - a.updatedAt);
   files.forEach((f) => (byId[f.tool] || byId.doc).files.push(f));
 
   let renderer;
@@ -363,8 +368,25 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
       c.style.setProperty("--tilt", (i % 2 ? 3 : -3) + "deg");
       let pv = preview(tool, f, i);
       if (s === ROOT) pv = pv.replace(/<\/div>$/, `<span class="kind"><span class="ki">${iconSvg(tool.id)}</span>${tool.name}</span></div>`);
-      c.innerHTML = `${pv}<span class="nm">${esc(f.title)}</span><span class="mt">${f.online > 0 ? `<span class="live">${f.online} editing</span>` : ""}<span class="t">${ago(f.updatedAt)}</span></span>`;
+      c.innerHTML = `${pv}<span class="nm">${esc(f.title)}</span><span class="mt">${f.online > 0 ? `<span class="live">${f.online} editing</span>` : ""}<span class="t">${ago(f.updatedAt)}</span></span><span class="del" role="button" tabindex="0" title="Delete file" aria-label="Delete ${esc(f.title)}">${TRASH}</span>`;
       c.onclick = (e) => { e.stopPropagation(); opts.openFile(f.id); };
+      const del = c.querySelector(".del");
+      const remove = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!confirm(`Delete "${f.title}"? This removes it for everyone.`)) return;
+        opts.deleteFile(f.id).then(() => {
+          files = files.filter((x) => x.id !== f.id);
+          tool.files = tool.files.filter((x) => x.id !== f.id);
+          tool.label.innerHTML = toolLabel(tool);
+          // redraw the open card list without the deleted file
+          const s = focused;
+          focused = null;
+          focus(s);
+        }, () => alert("Couldn't delete that file. Try again."));
+      };
+      del.onclick = remove;
+      del.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && remove(e);
       ov.insertBefore(c, dock);
       cards.push(c);
     });

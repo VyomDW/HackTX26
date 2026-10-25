@@ -72,6 +72,11 @@
 .nh .card .mt .live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--live)}
 .nh .card .mt .muse{font-family:var(--hand);font-size:17px;font-weight:700;color:var(--orb);line-height:1}
 .nh .card .mt span.t{margin-left:auto;white-space:nowrap}
+.nh .card .del{position:absolute;z-index:2;top:5px;right:5px;display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:var(--panel);border:1.5px solid var(--ink);color:var(--ink);opacity:0;transition:opacity .12s ease}
+.nh .card .del svg{width:13px;height:13px}
+.nh .card:hover .del,.nh .card:focus-within .del{opacity:1}
+.nh .card .del:hover,.nh .card .del:focus-visible{background:#dc2626;border-color:#dc2626;color:#fff;outline:none}
+@media (hover:none){.nh .card .del{opacity:1}}
 .nh .card.newf{place-items:center;align-content:center;border-style:dashed;box-shadow:none;min-height:132px;color:var(--ink);font-weight:600;font-size:13px;background:rgb(255 254 251 / .7)}
 .nh .card.newf::before{display:none}
 .nh .card.newf i svg{width:18px;height:18px}

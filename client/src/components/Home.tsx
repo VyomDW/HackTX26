@@ -30,6 +30,10 @@ export function Home() {
         dispose = mountNodeCloud(stage.current, {
           files: files.map((f) => ({ id: f.id, tool: f.kind === "board" ? (f.template ?? "whiteboard") : f.kind, title: f.title, updatedAt: f.updatedAt, online: f.online })),
           openFile: (id) => location.assign(roomUrl(id)),
+          deleteFile: (id) =>
+            fetch(`/api/docs/${encodeURIComponent(id)}`, { method: "DELETE" }).then((r) => {
+              if (!r.ok) throw new Error(`delete failed: ${r.status}`);
+            }),
           newFile: (tool, prompt) => {
             const t = TARGETS.find((x) => x.key === tool) ?? TARGETS[0];
             location.assign(roomUrl(newRoomId(), t.kind, prompt, t.template));

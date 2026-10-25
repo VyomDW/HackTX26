@@ -36,7 +36,9 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
         else if (msg.type === "error") store.setError(msg.message);
         else if (msg.type === "caption") useVoice.getState().addCaption(msg.caption);
       };
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        // the file was deleted (here or by someone else): back to the home screen
+        if (e.code === 4404) return location.assign(location.pathname);
         setConnected(false);
         useDeck.getState().setAiStatus("idle");
         if (!closed) retry = setTimeout(connect, Math.min(500 * 2 ** attempt++, 8000));
