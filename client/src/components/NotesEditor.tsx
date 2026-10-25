@@ -231,7 +231,8 @@ function NoteView({ note, onBack, onDeleted }: { note: Note; onBack: () => void;
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: note.color ?? "white" }}>
+      {/* A coloured note is a sheet of paper, so it keeps light-theme text on its pastel; an uncoloured one follows the app theme. */}
+      <div className={cn("min-h-0 flex-1 overflow-y-auto", note.color && "paper")} style={{ background: note.color ?? "var(--color-white)" }}>
         <div className={cn("mx-auto max-w-3xl px-6 py-8 transition-colors sm:px-10", flash && "animate-pulse")}>
           <input
             value={title}

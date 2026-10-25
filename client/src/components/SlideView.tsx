@@ -4,6 +4,7 @@ import type { Box, Element, ShapeKind, Slide, Style } from "@hacktx/shared";
 import { richText, u } from "@/lib/canvas";
 import { cn } from "@/lib/utils";
 import { useDeck } from "@/store/deck";
+import { useEditor } from "@/store/editor";
 
 export interface SlideViewProps {
   slide: Slide;
@@ -104,7 +105,7 @@ function ElementView({ slideId, element, box, live, custom, className, style, ..
         {flash && (
           <motion.span
             key={flash.key}
-            className="pointer-events-none absolute z-10 rounded-[0.6cqw] bg-violet-400/15 ring-[0.2cqw] ring-violet-400/70"
+            className="pointer-events-none absolute z-10 rounded-[0.6cqw] bg-[#ffc46b]/15 shadow-[0_0_3cqw_rgba(255,196,107,.35)] ring-[0.3cqw] ring-[#ffc46b]/85"
             style={{ inset: u(-8) }}
             initial={{ opacity: 1 }}
             animate={{ opacity: 0 }}
@@ -175,7 +176,7 @@ function TextBody({ text, live, flashKey, ms, placeholder }: { text: string; liv
   return (
     <div>
       {richText(text.slice(0, shown))}
-      {shown < text.length && <span className="ml-[0.2cqw] inline-block h-[1em] w-[0.25cqw] translate-y-[0.15em] animate-pulse bg-violet-500" />}
+      {shown < text.length && <span className="ml-[0.2cqw] inline-block h-[1em] w-[0.25cqw] translate-y-[0.15em] animate-pulse bg-[#e0982f]" />}
     </div>
   );
 }
@@ -236,26 +237,25 @@ function ShapeSvg({ shape, w, h, style }: { shape: ShapeKind; w: number; h: numb
   );
 }
 
-/** A labelled pointer that glides to whatever the AI is editing on this slide. */
+/** The AI's caret in the flat view: a small glowing orb that glides to whatever it is editing. The 3D stage draws its own. */
 function AiCursor({ slide }: { slide: Slide }) {
   const focus = useDeck((s) => s.focus);
   const busy = useDeck((s) => s.aiStatus !== "idle" || s.pending > 0);
-  if (focus?.slideId !== slide.id) return null;
+  const flat = useEditor((s) => s.view === "2d");
+  if (!flat || focus?.slideId !== slide.id) return null;
   const box = slide.elements.find((e) => e.id === focus.elementId)?.box;
   const x = box ? Math.min(box.x + box.w, 1200) : 1100;
   const y = box ? box.y + Math.min(box.h, 60) / 2 : 70;
 
   return (
     <motion.div
-      className="pointer-events-none absolute left-0 top-0 z-20"
+      className="pointer-events-none absolute left-0 top-0 z-20 flex -translate-y-1/2 items-center"
       initial={false}
-      animate={{ left: u(x), top: u(y), opacity: busy ? 1 : 0.35 }}
+      animate={{ left: u(x), top: u(y), opacity: busy ? 1 : 0.4 }}
       transition={{ type: "spring", stiffness: 260, damping: 26 }}
     >
-      <svg width="18" height="18" viewBox="0 0 18 18" className="drop-shadow">
-        <path d="M2 2l5.5 14 2.2-5.8L15.5 8z" fill="#7c3aed" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-      <span className="ml-3 inline-block rounded-md bg-violet-600 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow">Muse</span>
+      <span className="orb-core relative block size-[2.2cqw] min-h-3 min-w-3 rounded-full shadow-[0_0_1.5cqw_0.6cqw_rgba(255,196,107,.5)] [animation:orb-pulse_1.6s_ease-in-out_infinite]" />
+      <span className="ml-[0.8cqw] inline-block rounded-md bg-[#ffc46b] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[#2a1a05] shadow">Muse</span>
     </motion.div>
   );
 }

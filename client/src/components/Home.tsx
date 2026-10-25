@@ -42,18 +42,19 @@ export function Home() {
   const shown = (files ?? []).filter((f) => filter === "all" || f.kind === filter);
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900">
-      <header className="flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-4 sm:px-8">
-        <div className="grid size-7 place-items-center rounded-lg bg-violet-600 text-sm font-bold text-white">M</div>
-        <span className="font-semibold">Muse Office</span>
+    <div className="night stage-bg min-h-dvh font-ui text-ink">
+      <header className="flex h-14 items-center gap-2 border-b border-white/5 bg-[#090b1a]/80 px-4 sm:px-8">
+        <span className="orb-core size-3.5 rounded-full" />
+        <span className="font-display text-[17px] font-bold">Muse Office</span>
         <span className="ml-2 hidden text-sm text-slate-400 sm:inline">Docs, sheets, slides and notes you co-edit with AI</span>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
-        <section className="rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 p-5 text-white shadow-lg sm:p-8">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">What do you want to make?</h1>
-          <p className="mt-1 text-sm text-violet-100">Describe it and Muse builds it live. Anyone you invite can edit alongside.</p>
-          <div className="mt-5 flex flex-wrap gap-2">
+        <section className="relative overflow-hidden rounded-2xl border border-line bg-panel/80 p-5 shadow-[0_40px_80px_-30px_rgba(0,0,0,.7)] sm:p-8">
+          <span aria-hidden className="orb-core pointer-events-none absolute -right-6 -top-6 size-32 rounded-full opacity-60 blur-sm [animation:orb-pulse_3s_ease-in-out_infinite]" />
+          <h1 className="relative font-display text-3xl font-bold tracking-tight sm:text-5xl">What do you want to make?</h1>
+          <p className="relative mt-2 max-w-xl text-[15px] text-dim">Describe it and Muse builds it live. Anyone you invite can edit alongside.</p>
+          <div className="relative mt-5 flex flex-wrap gap-2">
             {(Object.keys(KINDS) as DocKind[]).map((k) => {
               const K = KINDS[k];
               return (
@@ -62,7 +63,7 @@ export function Home() {
                   onClick={() => setKind(k)}
                   className={cn(
                     "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition",
-                    kind === k ? "bg-white text-violet-700" : "bg-white/15 text-white hover:bg-white/25",
+                    kind === k ? "bg-orb/15 text-orb ring-1 ring-orb/40" : "bg-white/5 text-ink hover:bg-white/10",
                   )}
                 >
                   <K.icon className="size-4" /> {K.label}
@@ -71,7 +72,7 @@ export function Home() {
             })}
           </div>
           <form
-            className="mt-3 flex items-center gap-2 rounded-xl bg-white p-2 shadow-sm"
+            className="mt-3 flex items-center gap-2 rounded-full border border-line bg-white/[0.03] p-1.5 pl-3 focus-within:border-orb"
             onSubmit={(e) => {
               e.preventDefault();
               if (prompt.trim()) open(kind, prompt.trim());
@@ -81,15 +82,15 @@ export function Home() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={KINDS[kind].suggestions[0]}
-              className="min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+              className="min-w-0 flex-1 bg-transparent px-2 text-[15px] text-ink outline-none placeholder:text-dim"
             />
-            <button type="submit" disabled={!prompt.trim()} className="grid size-9 place-items-center rounded-lg bg-violet-600 text-white disabled:opacity-40">
+            <button type="submit" disabled={!prompt.trim()} className="grid size-9 place-items-center rounded-full bg-orb text-orb-ink disabled:opacity-30">
               <ArrowUp className="size-4" />
             </button>
           </form>
           <div className="mt-3 flex flex-wrap gap-2">
             {KINDS[kind].suggestions.map((s) => (
-              <button key={s} onClick={() => open(kind, s)} className="rounded-full bg-white/10 px-3 py-1 text-xs text-violet-50 hover:bg-white/20">
+              <button key={s} onClick={() => open(kind, s)} className="rounded-full border border-line px-3 py-1 text-xs text-dim hover:border-orb hover:text-orb">
                 {s}
               </button>
             ))}
@@ -122,7 +123,7 @@ export function Home() {
                 <button
                   key={k}
                   onClick={() => setFilter(k as DocKind | "all")}
-                  className={cn("rounded-full px-2.5 py-1", filter === k ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-200")}
+                  className={cn("rounded-full px-2.5 py-1", filter === k ? "bg-orb/15 text-orb" : "text-dim hover:bg-white/5")}
                 >
                   {k === "all" ? "All" : KINDS[k as DocKind].label}
                 </button>
@@ -161,7 +162,7 @@ export function Home() {
                           setConfirm(undefined);
                           void load();
                         }}
-                        className="rounded-md bg-red-600 px-2 py-1 font-medium text-white"
+                        className="rounded-md bg-live px-2 py-1 font-medium text-page"
                       >
                         Delete
                       </button>

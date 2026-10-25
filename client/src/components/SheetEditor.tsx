@@ -66,6 +66,15 @@ function usedRange(sheet: Sheet) {
 }
 
 /** Google Sheets / Excel style editor: formula bar, grid with selection, formatting and charts. */
+/** A readable text colour for a cell fill the model or a user picked (the app theme itself is dark). */
+function textOn(fill?: string) {
+  const m = fill && /^#?([0-9a-f]{6})$/i.exec(fill.trim());
+  if (!m) return undefined;
+  const n = parseInt(m[1]!, 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? "#0f172a" : "#f8fafc";
+}
+
 export function SheetEditor({ sheet }: { sheet: Sheet }) {
   const values = useMemo(() => evaluateSheet(sheet), [sheet]);
   const [anchor, setAnchor] = useState<Pos>({ r: 0, c: 0 });
@@ -435,8 +444,8 @@ export function SheetEditor({ sheet }: { sheet: Sheet }) {
                         )}
                         style={{
                           top: r < frozen ? ROW_H * (r + 1) : undefined,
-                          background: inSel && !isActive ? undefined : (s?.fill ?? (r < frozen ? "white" : undefined)),
-                          color: isError(v) ? undefined : s?.color,
+                          background: inSel && !isActive ? undefined : (s?.fill ?? (r < frozen ? "var(--color-white)" : undefined)),
+                          color: isError(v) ? undefined : (s?.color ?? textOn(s?.fill)),
                           fontWeight: s?.bold ? 700 : undefined,
                           fontStyle: s?.italic ? "italic" : undefined,
                           textAlign: align,

@@ -73,7 +73,7 @@ export function NameDialog({ initial, onSave, onCancel }: { initial: string; onS
   const valid = value.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4" onKeyDown={(e) => e.key === "Escape" && onCancel?.()}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onKeyDown={(e) => e.key === "Escape" && onCancel?.()}>
       <form
         className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-xl"
         onSubmit={(e) => {

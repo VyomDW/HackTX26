@@ -1,67 +1,134 @@
+import { useEffect } from "react";
 import { Loader2, Mic, MicOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { micSupported, usePushToTalk } from "@/hooks/usePushToTalk";
 import { useMicLevel } from "@/hooks/useMicLevel";
 import { cn } from "@/lib/utils";
+import { useEditor } from "@/store/editor";
+import { useVoice } from "@/store/voice";
 
-/** Hold to talk. Typing stays available as the fallback when the mic is unsupported or denied. */
-export function MicButton({ roomId, userId }: { roomId: string; userId: string }) {
+const isTyping = (t: EventTarget | null) =>
+  t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+
+/**
+ * Owns the one push-to-talk mic for this tab and publishes it to the voice store.
+ * Mount once per room. Also makes holding Space talk, like the mockups' "Hold Space to talk".
+ */
+export function useVoiceBridge(roomId: string, userId: string) {
   const { state, error, transcript, analyser, start, stop } = usePushToTalk(roomId, userId);
   const level = useMicLevel(analyser, state === "recording");
-  const recording = state === "recording";
 
-  if (!micSupported) {
+  useEffect(() => {
+    useVoice.setState({ supported: micSupported, state, error, transcript, start: () => void start(), stop: () => void stop() });
+  }, [state, error, transcript, start, stop]);
+  useEffect(() => useVoice.setState({ level }), [level]);
+
+  useEffect(() => {
+    if (!micSupported) return;
+    let held = false;
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat || isTyping(e.target) || useEditor.getState().presenting) return;
+      e.preventDefault();
+      held = true;
+      void start();
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || !held) return;
+      e.preventDefault();
+      held = false;
+      void stop();
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [start, stop]);
+}
+
+/** Hold to talk. The amber ring grows with your voice; typing stays available when the mic is unsupported or denied. */
+export function MicButton({ size = "md", className }: { size?: "md" | "lg"; className?: string }) {
+  const supported = useVoice((s) => s.supported);
+  const state = useVoice((s) => s.state);
+  const level = useVoice((s) => (s.state === "recording" ? s.level : 0));
+  const { start, stop } = useVoice.getState();
+  const recording = state === "recording";
+  const dim = size === "lg" ? "size-20" : "size-12";
+
+  if (!supported) {
     return (
-      <Button type="button" variant="outline" size="icon" disabled title="Voice needs HTTPS and a browser with microphone support">
-        <MicOff />
-      </Button>
+      <button
+        type="button"
+        disabled
+        title="Voice needs HTTPS and a browser with microphone support"
+        className={cn("grid shrink-0 place-items-center rounded-full border border-line text-dim", dim, className)}
+      >
+        <MicOff className="size-5" />
+      </button>
     );
   }
 
   return (
-    <div className="relative">
-      {(recording || state === "uploading" || error || transcript) && (
-        <p
-          className={cn(
-            "absolute bottom-full right-0 mb-3 w-max max-w-[70vw] rounded-md border bg-background px-2 py-1 text-xs shadow",
-            error && "text-red-600",
-          )}
-        >
-          {recording ? "Listening…" : state === "uploading" ? "Transcribing…" : error ? error : `Heard: “${transcript}”`}
-        </p>
+    <button
+      type="button"
+      aria-label="Hold to talk"
+      title="Hold to talk (or hold Space)"
+      className={cn(
+        "relative grid shrink-0 touch-none select-none place-items-center rounded-full transition-colors [-webkit-touch-callout:none]",
+        dim,
+        recording || state === "uploading" ? "bg-orb text-orb-ink" : "border border-line text-ink hover:border-orb",
+        className,
       )}
-      <Button
-        type="button"
-        variant={recording ? "default" : "outline"}
-        size="icon"
-        aria-label="Hold to talk"
-        title="Hold to talk"
-        className="relative touch-none select-none [-webkit-touch-callout:none]"
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          void start();
-        }}
-        onPointerUp={() => void stop()}
-        onPointerCancel={() => void stop()}
-        onContextMenu={(e) => e.preventDefault()}
-        onKeyDown={(e) => {
-          if ((e.key === " " || e.key === "Enter") && !e.repeat) {
-            e.preventDefault();
-            void start();
-          }
-        }}
-        onKeyUp={(e) => {
-          if (e.key === " " || e.key === "Enter") void stop();
-        }}
-      >
-        {/* Level meter: a ring that grows with input volume while recording. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-md transition-[box-shadow] duration-75"
-          style={{ boxShadow: recording ? `0 0 0 ${2 + level * 10}px rgb(239 68 68 / ${0.25 + level * 0.5})` : undefined }}
-        />
-        {state === "uploading" || state === "starting" ? <Loader2 className="animate-spin" /> : <Mic />}
-      </Button>
+      style={{
+        boxShadow: recording ? `0 0 0 ${4 + level * (size === "lg" ? 22 : 14)}px rgb(255 196 107 / ${0.14 + level * 0.3})` : undefined,
+        transition: "box-shadow 80ms linear",
+      }}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start();
+      }}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.repeat) {
+          e.preventDefault();
+          start();
+        }
+      }}
+      onKeyUp={(e) => e.key === "Enter" && stop()}
+    >
+      {recording && (
+        <>
+          <span aria-hidden className="pointer-events-none absolute -inset-1 rounded-full border-2 border-orb [animation:orb-ring_1.5s_ease-out_infinite]" />
+          <span aria-hidden className="pointer-events-none absolute -inset-1 rounded-full border-2 border-orb [animation:orb-ring_1.5s_ease-out_.75s_infinite]" />
+        </>
+      )}
+      {state === "uploading" || state === "starting" ? (
+        <Loader2 className={cn("animate-spin", size === "lg" ? "size-8" : "size-5")} />
+      ) : (
+        <Mic className={size === "lg" ? "size-8" : "size-5"} />
+      )}
+    </button>
+  );
+}
+
+/** Level bars beside the mic: flat when idle, dancing with the input while recording. */
+export function LevelBars({ count = 12, className }: { count?: number; className?: string }) {
+  const level = useVoice((s) => (s.state === "recording" ? s.level : 0));
+  return (
+    <div aria-hidden className={cn("flex h-7 items-center gap-[3px]", className)}>
+      {Array.from({ length: count }, (_, i) => {
+        // A fixed per-bar shape so the bars read as a waveform rather than one block.
+        const shape = 0.35 + 0.65 * Math.abs(Math.sin(i * 1.7 + 0.6));
+        return (
+          <i
+            key={i}
+            className="w-[3px] rounded-full bg-orb transition-[height] duration-75"
+            style={{ height: `${Math.max(14, Math.min(100, level * shape * 140))}%`, opacity: level ? 1 : 0.35 }}
+          />
+        );
+      })}
     </div>
   );
 }
