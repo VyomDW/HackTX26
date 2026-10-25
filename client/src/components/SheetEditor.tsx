@@ -468,7 +468,7 @@ export function SheetEditor({ sheet }: { sheet: Sheet }) {
                         {isActive && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-violet-600" />}
                         {aiCell === a && (
                           <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-fuchsia-500">
-                            <span className="absolute -top-px right-0 rounded-bl bg-orb px-1 text-[10px] font-semibold leading-4 text-white">nodepad</span>
+                            <span className="absolute -top-px right-0 rounded-bl bg-orb px-1 text-[10px] font-semibold leading-4 text-white">node</span>
                           </span>
                         )}
                       </td>

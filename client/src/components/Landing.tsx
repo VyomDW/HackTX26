@@ -196,7 +196,7 @@ export function Landing({ onEnter }: { onEnter: () => void }) {
                       <span className="av s">S</span>
                     </span>
                     <b>3 editing</b>
-                    <span className="muse">nodepad</span>
+                    <span className="muse">node</span>
                   </div>
                 </div>
               </div>
