@@ -107,7 +107,7 @@ export function Pen({ path, ms, zoom }: { path: string; ms: number; zoom: number
         animation: `pen-move ${ms}ms ease-in-out both, pen-lift 300ms ease-out ${ms}ms both`,
       }}
     >
-      <PencilLine className="size-full fill-white text-fuchsia-600 drop-shadow-[0_2px_3px_rgba(0,0,0,0.35)]" strokeWidth={2} />
+      <PencilLine className="size-full fill-white text-orange-600 drop-shadow-[0_2px_3px_rgba(0,0,0,0.35)]" strokeWidth={2} />
     </div>
   );
 }

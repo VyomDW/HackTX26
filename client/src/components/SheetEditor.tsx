@@ -245,7 +245,7 @@ export function SheetEditor({ sheet }: { sheet: Sheet }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2 [scrollbar-width:none]">
+      <div className="ink-bar flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto px-2 [scrollbar-width:none]">
         <Tool icon={Undo2} label="Undo (⌘Z)" onClick={undoMine} />
         <Tool icon={Redo2} label="Redo (⌘⇧Z)" onClick={redoMine} />
         <Sep />
@@ -468,7 +468,7 @@ export function SheetEditor({ sheet }: { sheet: Sheet }) {
                         {isActive && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-violet-600" />}
                         {aiCell === a && (
                           <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-fuchsia-500">
-                            <span className="absolute -top-px right-0 rounded-bl bg-fuchsia-500 px-1 text-[10px] font-semibold leading-4 text-white">Muse</span>
+                            <span className="absolute -top-px right-0 rounded-bl bg-orb px-1 text-[10px] font-semibold leading-4 text-white">Muse</span>
                           </span>
                         )}
                       </td>

@@ -15,7 +15,7 @@ import {
   type UserOp,
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
-import { findSourcedImage, generateImage, imagesEnabled } from "../integrations/image";
+import { findSourcedImage, generateImage, imagesEnabled, sourcedImagesEnabled } from "../integrations/image";
 import { search, type SearchResult } from "../integrations/search";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { lines } from "../ndjson";
@@ -317,7 +317,7 @@ export class Room {
       prompt = `${op.prompt}. High quality editorial illustration for a presentation slide, no text.`;
       finish = (url) => ({ type: "set_image_url", slideId: op.slideId, elementId: op.elementId, url });
     }
-    const sourcedSlideImageOp = this.doc.kind === "slides" && op.type === "add_image" && !op.url ? op : undefined;
+    const sourcedSlideImageOp = this.doc.kind === "slides" && op.type === "add_image" && !op.url && sourcedImagesEnabled() ? op : undefined;
     const sourcedSlideImage = !!sourcedSlideImageOp;
     if (!prompt || !finish || (!imagesEnabled && !sourcedSlideImage)) return;
     // Over the limit, wait for a slot rather than dropping the picture (it would show "drawing…" forever).

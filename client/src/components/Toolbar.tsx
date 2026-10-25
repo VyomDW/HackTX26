@@ -70,7 +70,7 @@ export function Toolbar() {
   const hasText = el && el.kind !== "image";
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2 [scrollbar-width:none]">
+    <div className="ink-bar flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto px-2 [scrollbar-width:none]">
       <Tool icon={Undo2} label="Undo (⌘Z)" onClick={act.undoMine} />
       <Tool icon={Redo2} label="Redo (⌘⇧Z)" onClick={act.redoMine} />
       <Sep />

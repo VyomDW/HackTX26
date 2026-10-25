@@ -135,6 +135,112 @@
   color: var(--orb-ink);
 }
 
+/*
+ * Workspace theme: off-white paper and black ink. Same trick as .night: the light slate/violet
+ * classes the editors use are remapped, here to warm paper greys and an orange ink accent.
+ */
+.ink {
+  --page: #fbfbf8;
+  --panel: #fffefb;
+  --line: #e2e0d6;
+  --ink: #1c1b18;
+  --dim: #6b6a63;
+  --orb: #ea580c;
+  --orb-ink: #ffffff;
+  --you: #2563eb;
+  --judge: #7c3aed;
+  --desk: #f6f5ef;
+  --desk-grid: #e9e7de;
+  --color-white: #fffefb;
+  --color-slate-50: #f6f5ef;
+  --color-slate-100: #efeee8;
+  --color-slate-200: #e2e0d6;
+  --color-slate-300: #cfcdc4;
+  --color-slate-400: #9c9a90;
+  --color-slate-500: #6b6a63;
+  --color-slate-600: #55544d;
+  --color-slate-700: #3b3a35;
+  --color-slate-800: #2a2925;
+  --color-slate-900: #1c1b18;
+  --color-violet-50: #fff4ec;
+  --color-violet-100: #ffe6d5;
+  --color-violet-200: #fdcfb1;
+  --color-violet-300: #f9a873;
+  --color-violet-400: #f28a4b;
+  --color-violet-500: #ea580c;
+  --color-violet-600: #ea580c;
+  --color-violet-700: #c2410c;
+  --background: #fffefb;
+  --foreground: #1c1b18;
+  --border: #e2e0d6;
+  --input: #e2e0d6;
+  --muted: #efeee8;
+  --muted-foreground: #6b6a63;
+  --accent: #efeee8;
+  --accent-foreground: #1c1b18;
+  --primary: #1c1b18;
+  --primary-foreground: #fbfbf8;
+  color: var(--ink);
+  color-scheme: light;
+  font-family: "Space Grotesk", "Figtree", system-ui, sans-serif;
+}
+.ink .font-ui,
+.ink .font-display {
+  font-family: "Space Grotesk", "Figtree", system-ui, sans-serif;
+}
+/* Selections look like a highlighter stroke. */
+.ink ::selection {
+  background: rgb(253 224 71 / 0.75);
+  color: inherit;
+}
+/* Graph-paper desk that pages and slides sit on. */
+.ink .stage-bg,
+.ink .desk {
+  background-color: var(--desk);
+  background-image: linear-gradient(var(--desk-grid) 1px, transparent 1px), linear-gradient(90deg, var(--desk-grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+/* Toolbars: an ink-outlined card with a hard offset shadow, like a cut-out on the desk. */
+.ink .ink-bar {
+  margin: 10px 12px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+/* A sheet of paper: ink outline, hard shadow and a strip of tape across the top. */
+.ink .ink-page {
+  position: relative;
+  border: 1.5px solid var(--ink);
+  background: #fffefb;
+  box-shadow: 6px 6px 0 var(--ink);
+}
+.ink .ink-page.taped::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -13px;
+  width: 112px;
+  height: 26px;
+  margin-left: -56px;
+  background: rgb(234 88 12 / 0.28);
+  transform: rotate(-3deg);
+  pointer-events: none;
+  z-index: 1;
+}
+.ink .ink-btn {
+  border: 1.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.ink .ink-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+/* Muse signs its work by hand. */
+.hand {
+  font-family: "Caveat", cursive;
+}
+
 .orb-core {
   background: radial-gradient(circle at 40% 35%, #fff 0 16%, var(--orb) 44%, transparent 74%);
   box-shadow: 0 0 10px 2px rgb(255 196 107 / 0.6);

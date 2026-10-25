@@ -30,6 +30,7 @@ import { useTypewriter } from "@/lib/typing";
 import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
 import { commit } from "@/store/editor";
+import { MusePointer } from "./SlideView";
 import { Popover } from "./ui/popover";
 
 const TEXT_TYPES: { type: BlockType; label: string }[] = [
@@ -95,7 +96,7 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2 [scrollbar-width:none] print:hidden">
+      <div className="ink-bar flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto px-2 [scrollbar-width:none] print:hidden">
         <Tool icon={Undo2} label="Undo (⌘Z)" onClick={undoMine} />
         <Tool icon={Redo2} label="Redo (⌘⇧Z)" onClick={redoMine} />
         <Sep />
@@ -180,9 +181,9 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 px-3 py-6 print:overflow-visible print:bg-white print:p-0 sm:px-6 sm:py-10">
+      <div className="desk min-h-0 flex-1 overflow-y-auto px-3 py-8 print:overflow-visible print:bg-white print:p-0 sm:px-6 sm:py-12">
         <div
-          className="mx-auto min-h-[70vh] w-full max-w-[816px] rounded-sm bg-white px-6 py-10 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_6px_20px_rgba(0,0,0,0.05)] print:max-w-none print:shadow-none sm:px-[72px] sm:py-16"
+          className="ink-page taped mx-auto min-h-[70vh] w-full max-w-[816px] px-6 py-10 print:max-w-none print:border-0 print:shadow-none sm:px-[72px] sm:py-16"
           onClick={(e) => e.target === e.currentTarget && addAtEnd()}
         >
           <TitleInput title={doc.title} />
@@ -531,8 +532,8 @@ function BlockRow({
         )}
       </div>
       {aiHere && (
-        <span className="pointer-events-none absolute -right-2 top-1 translate-x-full rounded-md bg-violet-600 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow max-sm:hidden">
-          Muse
+        <span className="pointer-events-none absolute -right-3 top-1 translate-x-full max-sm:hidden">
+          <MusePointer />
         </span>
       )}
     </div>

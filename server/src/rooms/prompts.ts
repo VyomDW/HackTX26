@@ -200,7 +200,7 @@ blueprint: an architectural floor plan at a fixed scale of 20 units = 1 foot (a 
      {"type":"add_node","id":"n11","shape":"fixture","fixture":"bed","x":60,"y":40}
      {"type":"add_node","id":"n12","shape":"fixture","fixture":"sofa","x":300,"y":320,"rotate":180}
    Every room gets its furniture and every exterior wall gets at least one window. Leave fixture w/h out so they keep real-world size.
-   Do not use connectors or auto_layout on blueprints. Use text nodes with "textColor":"#ffffff" only for extra labels such as "ENTRY".
+   Do not use connectors or auto_layout on blueprints. Use plain text nodes only for extra labels such as "ENTRY".
 
 RULES
 1. You receive the board as JSON with every request. Reuse ids when editing; never invent ids for things that do not exist.

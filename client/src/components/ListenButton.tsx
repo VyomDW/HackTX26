@@ -45,7 +45,7 @@ export function ListenButton({ className }: { className?: string }) {
         <Ear className="size-5" />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-xl border border-line bg-[#11142a] p-1 text-left shadow-2xl">
+        <div className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-xl border-[1.5px] border-[var(--ink)] bg-panel p-1 text-left shadow-[4px_4px_0_var(--ink)]">
           <MenuItem icon={<Mic className="size-4" />} title="Listen with my mic" detail="Everyone in the room can talk; Muse acts only on requests." onClick={() => pick(false)} />
           {callAudioSupported && (
             <MenuItem
@@ -63,7 +63,7 @@ export function ListenButton({ className }: { className?: string }) {
 
 function MenuItem({ icon, title, detail, onClick }: { icon: React.ReactNode; title: string; detail: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex w-full gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5">
+    <button type="button" onClick={onClick} className="flex w-full gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-slate-100">
       <span className="mt-0.5 text-orb">{icon}</span>
       <span className="grid gap-0.5">
         <span className="text-sm font-medium text-ink">{title}</span>

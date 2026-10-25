@@ -124,7 +124,7 @@ export function Stage({ slide }: { slide: Slide }) {
   return (
     <div
       ref={ref}
-      className="relative w-full rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.08),0_8px_24px_rgba(0,0,0,0.08)] ring-1 ring-black/5"
+      className="ink-page taped relative w-full"
       onPointerDown={() => select(undefined)}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {

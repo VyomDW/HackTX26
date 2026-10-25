@@ -189,6 +189,9 @@ async function readCache(): Promise<Record<string, ImageCacheEntry>> {
   }
 }
 
+/** Web image search needs a SerpApi key; without one, slide images are generated instead. */
+export const sourcedImagesEnabled = () => !!env.serpApiKey;
+
 /** Finds a verifiable web image via SerpApi, preferring the site's full-resolution original, and returns source attribution. */
 export async function findSourcedImage(query: string, context = ""): Promise<SourcedImage> {
   const cleanQuery = `${query} ${context}`.trim().replace(/\s+/g, " ");

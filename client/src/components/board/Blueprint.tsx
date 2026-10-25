@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { UNITS_PER_FOOT, type Board, type BoardNode, type Fixture } from "@hacktx/shared";
 
-/** Floor-plan drawing: white line art on blueprint blue, at 20 canvas units per foot. */
+/** Floor-plan drawing: ink line art on drafting paper, at 20 canvas units per foot. */
 
-const INK = "#e8f1ff";
-const FAINT = "rgba(232, 241, 255, 0.45)";
+const INK = "#1c1b18";
+const FAINT = "rgba(28, 27, 24, 0.4)";
 
 /** 250 units -> 12'-6" */
 export function ftIn(units: number): string {
@@ -14,10 +14,11 @@ export function ftIn(units: number): string {
 
 export const areaSqFt = (n: Pick<BoardNode, "w" | "h">) => Math.round((n.w / UNITS_PER_FOOT) * (n.h / UNITS_PER_FOOT));
 
-export const BLUEPRINT_BG = {
-  backgroundColor: "#0d3563",
-  minor: "rgba(255,255,255,0.07)",
-  major: "rgba(255,255,255,0.16)",
+/** Every canvas sits on graph paper; doors and windows paint this colour to cut their opening out of a wall. */
+export const PAPER = {
+  backgroundColor: "#fbfbf8",
+  minor: "#f1f0ea",
+  major: "#e4e2d9",
 };
 
 /** Room schedule for engineers: name, dimensions and area of every room. */
@@ -160,7 +161,7 @@ export function BlueprintNode({ node, editor }: { node: BoardNode; editor?: Reac
 
   if (node.shape === "room") {
     return (
-      <div className="absolute inset-0" style={{ border: `6px solid ${INK}`, background: node.fill ?? "rgba(232,241,255,0.04)" }}>
+      <div className="absolute inset-0" style={{ border: `6px solid ${INK}`, background: node.fill ?? "rgba(28,27,24,0.025)" }}>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center font-mono leading-tight" style={label}>
           <div className="font-bold uppercase tracking-wide">{editor ?? (node.text || "Room")}</div>
           <div className="mt-1 text-[0.75em] opacity-75">
@@ -179,7 +180,7 @@ export function BlueprintNode({ node, editor }: { node: BoardNode; editor?: Reac
     // Opening along the bottom edge, hinge at bottom-left, leaf standing up the left edge, swing arc to the right.
     art = (
       <>
-        <rect x={0} y={h - 6} width={w} height={6} fill="#0d3563" />
+        <rect x={0} y={h - 6} width={w} height={6} fill={PAPER.backgroundColor} />
         <line x1={2} y1={h} x2={2} y2={0} {...s} />
         <path d={`M 2 0 A ${w - 2} ${h} 0 0 1 ${w} ${h}`} fill="none" stroke={FAINT} strokeWidth={1.5} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
       </>
@@ -187,7 +188,7 @@ export function BlueprintNode({ node, editor }: { node: BoardNode; editor?: Reac
   } else if (node.shape === "window") {
     art = (
       <>
-        <rect x={0} y={0} width={w} height={h} fill="#0d3563" stroke={INK} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <rect x={0} y={0} width={w} height={h} fill={PAPER.backgroundColor} stroke={INK} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
         {w >= h ? <line x1={0} y1={h / 2} x2={w} y2={h / 2} {...s} strokeWidth={1} /> : <line x1={w / 2} y1={0} x2={w / 2} y2={h} {...s} strokeWidth={1} />}
       </>
     );
@@ -236,7 +237,7 @@ export function Dimensions({ node, zoom }: { node: BoardNode; zoom: number }) {
   const { x, y, w, h } = node;
   return (
     <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={1} height={1}>
-      <g stroke="#ffd28a" strokeWidth={sw} fill="#ffd28a" fontFamily="JetBrains Mono, monospace" fontSize={fs}>
+      <g stroke="#ea580c" strokeWidth={sw} fill="#ea580c" fontFamily="JetBrains Mono, monospace" fontSize={fs}>
         <line x1={x} y1={y - off} x2={x + w} y2={y - off} />
         <line x1={x} y1={y - off - tick} x2={x} y2={y - off + tick} />
         <line x1={x + w} y1={y - off - tick} x2={x + w} y2={y - off + tick} />

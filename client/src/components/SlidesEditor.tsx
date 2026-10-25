@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { KINDS } from "@/lib/kinds";
 import { useShortcuts } from "@/lib/shortcuts";
 import { selectDeck, useDeck } from "@/store/deck";
@@ -8,29 +8,12 @@ import { Stage } from "./Stage";
 import { StageOverlays } from "./StageOverlays";
 import { Toolbar } from "./Toolbar";
 
-// Three.js only downloads for people who actually get the 3D stage.
-const Stage3D = lazy(() => import("./three/Stage3D"));
-
-const hasWebGL = (() => {
-  try {
-    const c = document.createElement("canvas");
-    return !!(c.getContext("webgl2") ?? c.getContext("webgl"));
-  } catch {
-    return false;
-  }
-})();
-
-/** The presentation editor: the 3D stage (a skin over the same deck store) or the flat rail, stage and notes. */
+/** The presentation editor: slide rail, the slide on its desk, and speaker notes. */
 export function SlidesEditor({ userId, onPrompt }: { userId: string; onPrompt: (text: string) => void }) {
   const deck = useDeck(selectDeck);
   const focus = useDeck((s) => s.focus);
-  const { slideId, follow, view, selectedId } = useEditor();
-  const flat = view === "2d";
+  const { slideId, follow } = useEditor();
   useShortcuts();
-
-  useEffect(() => {
-    if (!hasWebGL && useEditor.getState().view === "3d") useEditor.getState().setView("2d", "no-webgl");
-  }, []);
 
   // Follow mode keeps the stage on whatever slide the AI is touching.
   useEffect(() => {
@@ -42,12 +25,11 @@ export function SlidesEditor({ userId, onPrompt }: { userId: string; onPrompt: (
 
   return (
     <>
-      {flat && <Toolbar />}
+      <Toolbar />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {flat && <SlideRail />}
+        <SlideRail />
         <main className="stage-bg relative order-1 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:order-none">
-          {flat ? (
-            current ? (
+          {current ? (
               <>
                 <StageArea>
                   <Stage slide={current} />
@@ -66,28 +48,8 @@ export function SlidesEditor({ userId, onPrompt }: { userId: string; onPrompt: (
               <div className="flex flex-1 items-center justify-center p-4">
                 <EmptyDeck onPick={onPrompt} />
               </div>
-            )
-          ) : (
-            <>
-              <Suspense fallback={<div className="absolute inset-0 grid place-items-center text-sm text-dim">Setting up the 3D stage…</div>}>
-                <Stage3D className="absolute inset-0" />
-              </Suspense>
-              {!current && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-                  <div className="pointer-events-auto">
-                    <EmptyDeck onPick={onPrompt} />
-                  </div>
-                </div>
-              )}
-            </>
           )}
           <StageOverlays userId={userId} />
-          {/* On the 3D stage the formatting toolbar floats in only while something is selected, so the stage never jumps. */}
-          {!flat && selectedId && (
-            <div className="absolute inset-x-0 top-0 z-30 shadow-lg">
-              <Toolbar />
-            </div>
-          )}
         </main>
       </div>
     </>

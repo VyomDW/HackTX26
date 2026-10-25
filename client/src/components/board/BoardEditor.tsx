@@ -56,8 +56,9 @@ import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
 import { commit } from "@/store/editor";
 import { MenuItem, Sep, Tool } from "../DocEditor";
+import { MusePointer } from "../SlideView";
 import { Popover } from "../ui/popover";
-import { BLUEPRINT_BG, Dimensions, roomSchedule } from "./Blueprint";
+import { Dimensions, PAPER, roomSchedule } from "./Blueprint";
 import { BoardNodeView, SERVICE_ICONS } from "./BoardNodeView";
 import { drawStyle, Pen, penKeys, perimeterPath, scribblePath, usePenDrawings } from "./PenDraw";
 
@@ -619,7 +620,6 @@ export function BoardEditor({ board }: { board: Board }) {
           <BoardNodeView
             node={n}
             highlighted={flash?.elementId === n.id}
-            dark={blueprint}
             drawMs={d?.kind === "outline" ? d.ms : undefined}
             editor={editing?.kind === "node" && editing.id === n.id ? <TextEditor node={n} onDone={() => setEditing(undefined)} /> : undefined}
           />
@@ -634,7 +634,9 @@ export function BoardEditor({ board }: { board: Board }) {
       })()}
       {flash?.elementId === n.id && !penKeys.has(flash.key) && <span key={flash.key} className="cell-flash pointer-events-none absolute -inset-2 rounded-xl" />}
       {aiTarget === n.id && (
-        <span className="pointer-events-none absolute -right-1 -top-6 rounded-md bg-fuchsia-500 px-1.5 py-0.5 text-[11px] font-semibold text-white shadow">Muse</span>
+        <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-1 whitespace-nowrap" style={{ transform: `scale(${1 / view.z})`, transformOrigin: "top left" }}>
+          <MusePointer />
+        </span>
       )}
     </div>
   );
@@ -642,7 +644,7 @@ export function BoardEditor({ board }: { board: Board }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
-      <div className="flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2 [scrollbar-width:none]">
+      <div className="ink-bar flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto px-2 [scrollbar-width:none]">
         <Tool icon={Undo2} label="Undo (⌘Z)" onClick={undoMine} />
         <Tool icon={Redo2} label="Redo (⌘⇧Z)" onClick={redoMine} />
         <Sep />
@@ -902,29 +904,18 @@ export function BoardEditor({ board }: { board: Board }) {
         onDoubleClick={onDoubleClick}
         onContextMenu={(e) => e.preventDefault()}
         className="paper relative min-h-0 flex-1 touch-none select-none overflow-hidden"
-        style={
-          blueprint
-            ? {
-                // 1 ft minor grid, 5 ft major grid, aligned to the canvas origin.
-                cursor,
-                backgroundColor: BLUEPRINT_BG.backgroundColor,
-                backgroundImage: [
-                  `linear-gradient(${BLUEPRINT_BG.major} 1px, transparent 1px)`,
-                  `linear-gradient(90deg, ${BLUEPRINT_BG.major} 1px, transparent 1px)`,
-                  `linear-gradient(${BLUEPRINT_BG.minor} 1px, transparent 1px)`,
-                  `linear-gradient(90deg, ${BLUEPRINT_BG.minor} 1px, transparent 1px)`,
-                ].join(","),
-                backgroundSize: `${100 * view.z}px ${100 * view.z}px, ${100 * view.z}px ${100 * view.z}px, ${20 * view.z}px ${20 * view.z}px, ${20 * view.z}px ${20 * view.z}px`,
-                backgroundPosition: `${view.x}px ${view.y}px`,
-              }
-            : {
-                cursor,
-                backgroundColor: "#f8fafc",
-                backgroundImage: "radial-gradient(circle, #cbd5e1 1px, transparent 1.2px)",
-                backgroundSize: `${24 * view.z}px ${24 * view.z}px`,
-                backgroundPosition: `${view.x}px ${view.y}px`,
-              }
-        }
+        style={{
+          // Graph paper on every board; blueprints use a 1 ft minor and 5 ft major grid so squares read as feet.
+          cursor,
+          backgroundColor: PAPER.backgroundColor,
+          backgroundImage: [
+            ...(blueprint ? [`linear-gradient(${PAPER.major} 1px, transparent 1px)`, `linear-gradient(90deg, ${PAPER.major} 1px, transparent 1px)`] : []),
+            `linear-gradient(${blueprint ? PAPER.minor : PAPER.major} 1px, transparent 1px)`,
+            `linear-gradient(90deg, ${blueprint ? PAPER.minor : PAPER.major} 1px, transparent 1px)`,
+          ].join(","),
+          backgroundSize: (blueprint ? [100, 100, 20, 20] : [32, 32]).map((u) => `${u * view.z}px ${u * view.z}px`).join(", "),
+          backgroundPosition: `${view.x}px ${view.y}px`,
+        }}
       >
         <div
           className={cn("absolute left-0 top-0 origin-top-left", animate && "transition-transform duration-500 ease-out")}
@@ -1088,8 +1079,8 @@ export function BoardEditor({ board }: { board: Board }) {
 
         {board.nodes.length === 0 && board.strokes.length === 0 && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className={cn("text-center", blueprint ? "text-blue-100/70" : "text-slate-400")}>
-              <div className={cn("text-lg font-semibold", blueprint ? "text-blue-50" : "text-slate-500")}>
+            <div className="text-center text-slate-400">
+              <div className="text-lg font-semibold text-slate-500">
                 Empty {template === "erd" ? "schema" : template === "blueprint" ? "floor plan" : template === "architecture" ? "system diagram" : template}
               </div>
               <div className="mt-1 text-sm">Double-click to add a {SHAPE_LABEL[DEFAULT_SHAPE[template]].toLowerCase()}, or ask Muse to build it.</div>

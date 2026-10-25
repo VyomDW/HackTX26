@@ -92,12 +92,11 @@ function Outline({ node, drawMs }: { node: BoardNode; drawMs?: number }) {
 
 /** One board node, drawn in canvas units (the parent applies pan and zoom). */
 /** `drawMs` is set while Muse is drawing an outlined shape, so its border traces in. */
-export function BoardNodeView({ node, editor, highlighted, dark, drawMs }: { node: BoardNode; editor?: ReactNode; highlighted?: boolean; dark?: boolean; drawMs?: number }) {
+export function BoardNodeView({ node, editor, highlighted, drawMs }: { node: BoardNode; editor?: ReactNode; highlighted?: boolean; drawMs?: number }) {
   if (isBlueprintShape(node.shape)) return <BlueprintNode node={node} editor={editor} />;
   const fs = node.fontSize ?? (node.shape === "text" ? 24 : 16);
   const text = editor ?? (node.text ? inline(node.text) : null);
-  // On a blueprint, free text defaults to white so it reads on the blue.
-  const textStyle = { fontSize: fs, color: node.textColor ?? (dark && (node.shape === "text" || node.shape === "frame") ? "#e8f1ff" : "#0f172a") };
+  const textStyle = { fontSize: fs, color: node.textColor ?? "#0f172a" };
 
   if (node.shape === "image") {
     return (

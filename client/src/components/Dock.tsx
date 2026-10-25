@@ -55,7 +55,7 @@ export function Dock({
   const failed = listenError ?? error;
 
   return (
-    <div className={cn("flex items-center gap-3 border-t border-white/5 bg-gradient-to-t from-[#090b1a]/95 to-[#090b1a]/60 px-4 py-3 lg:gap-4 lg:px-6", className)}>
+    <div className={cn("flex items-center gap-3 border-t border-line bg-page px-4 py-3 lg:gap-4 lg:px-6", className)}>
       <MicButton />
       <ListenButton />
       <LevelBars className="hidden sm:flex" />
@@ -67,7 +67,7 @@ export function Dock({
         <span title={heard} className={cn("truncate text-[15px] font-medium", !transcript && !caption && voice === "idle" && "text-dim", failed && !talking && "text-live", caption?.acted && listen !== "off" && !talking && "text-orb")}>{heard}</span>
       </div>
       <form
-        className="flex h-12 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-white/[0.03] pl-4 pr-1.5 focus-within:border-orb md:max-w-md"
+        className="ink-btn flex h-12 min-w-0 flex-1 items-center gap-1 rounded-xl bg-panel pl-4 pr-1.5 focus-within:shadow-[3px_3px_0_var(--orb)] md:max-w-md"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -89,7 +89,7 @@ export function Dock({
           type="submit"
           disabled={!text.trim() || disabled}
           title="Send (Enter)"
-          className="grid size-9 shrink-0 place-items-center rounded-full bg-orb text-orb-ink disabled:opacity-30"
+          className="grid size-9 shrink-0 place-items-center rounded-lg bg-orb text-orb-ink disabled:opacity-30"
         >
           <ArrowUp className="size-4" />
         </button>

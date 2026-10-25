@@ -187,7 +187,7 @@ function NoteView({ note, onBack, onDeleted }: { note: Note; onBack: () => void;
 
   return (
     <>
-      <div className="flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-slate-200 bg-white px-2 [scrollbar-width:none]">
+      <div className="ink-bar flex h-11 shrink-0 items-center gap-0.5 overflow-x-auto px-2 [scrollbar-width:none]">
         <button onClick={onBack} className="mr-1 grid size-8 place-items-center rounded-md hover:bg-slate-100 md:hidden" title="All notes">
           <ArrowLeft className="size-4" />
         </button>

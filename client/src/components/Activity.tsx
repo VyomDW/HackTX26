@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, Undo2 } from "lucide-react";
+import { ChevronDown, PenLine, Undo2 } from "lucide-react";
 import type { Deck, OpEnvelope, Turn } from "@hacktx/shared";
 import { cn } from "@/lib/utils";
 import { isBusy, selectDeck, turnSummary, useDeck } from "@/store/deck";
@@ -12,7 +12,11 @@ const HIDDEN = new Set(["focus", "noop", "set_image_url", "set_grid", "restore_c
 type Item = { kind: "turn"; ts: number; turn: Turn } | { kind: "op"; ts: number; env: OpEnvelope };
 
 export function AiAvatar({ className }: { className?: string }) {
-  return <span aria-label="Muse" className={cn("orb-core inline-block size-7 shrink-0 rounded-full", className)} />;
+  return (
+    <span aria-label="Muse" className={cn("inline-grid size-7 shrink-0 place-items-center rounded-full bg-orb text-white", className)}>
+      <PenLine className="size-[55%]" strokeWidth={2.4} />
+    </span>
+  );
 }
 
 const clip = (t: string, n = 48) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t);
@@ -154,7 +158,7 @@ export function Activity({
   const stream = history.filter((h) => h.actor === "ai" && !h.undoes && h.op.type !== "noop").slice(-14);
 
   return (
-    <aside className={cn("flex min-h-0 flex-col bg-[#0d0f20]/90", className)}>
+    <aside className={cn("flex min-h-0 flex-col bg-panel", className)}>
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
         <h4 className="flex items-baseline justify-between font-display text-[15px] font-bold">
           Activity <span className="font-ui text-[11px] font-normal text-dim">{edits === 1 ? "1 edit" : `${edits} edits`}</span>
@@ -238,7 +242,7 @@ export function Activity({
       </div>
 
       {!compact && (
-        <section className="hidden shrink-0 border-t border-line bg-[#080a17] lg:block">
+        <section className="hidden shrink-0 border-t border-line bg-slate-50 lg:block">
           <button
             onClick={() => setStreamOpen((o) => !o)}
             className="flex w-full items-baseline justify-between px-4 py-2.5 font-display text-[13px] font-bold hover:text-orb"
@@ -249,7 +253,7 @@ export function Activity({
             </span>
           </button>
           {streamOpen && (
-            <pre className="flex h-36 flex-col justify-end overflow-hidden whitespace-pre-wrap break-all px-4 pb-3 font-mono text-[10.5px] leading-relaxed text-[#7f86a8]">
+            <pre className="flex h-36 flex-col justify-end overflow-hidden whitespace-pre-wrap break-all px-4 pb-3 font-mono text-[10.5px] leading-relaxed text-slate-500">
               {stream.length === 0 && <span>Waiting for Muse…</span>}
               {stream.map((h, i) => (
                 <span key={h.opId} className={cn("block", i === stream.length - 1 && "text-ink")}>

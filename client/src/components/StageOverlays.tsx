@@ -7,13 +7,12 @@ import { useEditor } from "@/store/editor";
 import { AiAvatar } from "./Activity";
 import { Avatar } from "./Presence";
 
-/** Camera chip, who-just-asked bubble, fallback banner and the undo toast, layered over either stage. */
+/** Follow chip, who-just-asked bubble and the undo toast, layered over the stage. */
 export function StageOverlays({ userId }: { userId: string }) {
   return (
     <>
       <CameraChip />
       <RequestBubble userId={userId} />
-      <FlatBanner />
       <TurnToast />
     </>
   );
@@ -30,7 +29,7 @@ function CameraChip() {
   const text = !slides.length
     ? "Waiting for a request"
     : follow && busy && focusIndex >= 0
-      ? `Camera following Muse · slide ${focusIndex + 1}`
+      ? `Following Muse · slide ${focusIndex + 1}`
       : follow
         ? `Following Muse · slide ${index + 1} of ${slides.length}`
         : `Slide ${index + 1} of ${slides.length} · Follow Muse`;
@@ -38,10 +37,10 @@ function CameraChip() {
   return (
     <button
       onClick={() => slides.length && useEditor.setState((s) => ({ follow: !s.follow }))}
-      title={follow ? "Stop following Muse" : "Keep the camera on whatever Muse is editing"}
+      title={follow ? "Stop following Muse" : "Keep the stage on whatever Muse is editing"}
       className={cn(
         "absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 font-mono text-[11px] backdrop-blur transition",
-        follow ? "border-orb/30 bg-[#0a0d1e]/70 text-orb" : "border-line bg-[#0a0d1e]/70 text-dim hover:text-ink",
+        follow ? "border-orb/40 bg-panel/90 text-orb" : "border-line bg-panel/90 text-dim hover:text-ink",
       )}
     >
       <Crosshair className="size-3" />
@@ -70,8 +69,8 @@ function RequestBubble({ userId }: { userId: string }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           className={cn(
-            "pointer-events-none absolute left-3 top-12 z-20 grid max-w-[min(280px,60%)] gap-1 rounded-xl border bg-[#111328]/95 px-3 py-2.5 shadow-xl",
-            turn.userId === userId ? "border-you/50" : "border-judge/55",
+            "pointer-events-none absolute left-3 top-12 z-20 grid max-w-[min(280px,60%)] gap-1 rounded-xl border-[1.5px] bg-panel px-3 py-2.5 shadow-[3px_3px_0_var(--ink)]",
+            "border-[var(--ink)]",
           )}
         >
           <div className="flex items-center gap-1.5 text-[11px] text-dim">
@@ -87,22 +86,6 @@ function RequestBubble({ userId }: { userId: string }) {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function FlatBanner() {
-  const autoFlat = useEditor((s) => s.autoFlat);
-  const setView = useEditor((s) => s.setView);
-  if (!autoFlat) return null;
-  return (
-    <div className="absolute right-3 top-12 z-20 flex items-center gap-3 rounded-xl border border-line bg-[#111328]/95 py-1.5 pl-3 pr-1.5 text-[13px] shadow-xl">
-      {autoFlat === "no-webgl" ? "3D needs WebGL, so this is the 2D view" : "Switched to 2D to keep things smooth"}
-      {autoFlat === "slow" && (
-        <button onClick={() => setView("3d")} className="rounded-md border border-orb/40 px-2 py-1 font-semibold text-orb hover:bg-orb/10">
-          Try 3D again
-        </button>
-      )}
-    </div>
   );
 }
 
@@ -138,7 +121,7 @@ function TurnToast() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 12 }}
-          className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-xl bg-[#f3efe7] py-1.5 pl-4 pr-1.5 text-sm font-medium text-[#1b1626] shadow-xl"
+          className="ink-btn absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-xl bg-panel py-1.5 pl-4 pr-1.5 text-sm font-medium text-ink"
         >
           Muse made {sum.edits} {sum.edits === 1 ? "edit" : "edits"}
           <button
@@ -146,7 +129,7 @@ function TurnToast() {
               send({ type: "undo_turn", turnId: shown });
               setShown(undefined);
             }}
-            className="flex items-center gap-1 rounded-lg bg-[#1b1626] px-3 py-1.5 text-[13px] text-[#f3efe7]"
+            className="flex items-center gap-1 rounded-lg bg-[var(--ink)] px-3 py-1.5 text-[13px] text-[var(--page)]"
           >
             <Undo2 className="size-3.5" /> Undo
           </button>
