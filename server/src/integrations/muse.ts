@@ -7,7 +7,7 @@ export interface ChatMessage {
   content: string;
 }
 
-/** Muse Spark speaks the OpenAI Chat Completions protocol, so the official SDK works with a custom baseURL. */
+/** Muse Spark speaks the OpenAI Responses protocol, so the official SDK works with a custom baseURL. */
 const client = env.museApiKey
   ? new OpenAI({ apiKey: env.museApiKey, baseURL: env.museBaseUrl, timeout: 60_000, maxRetries: 2 })
   : undefined;
@@ -27,7 +27,7 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
   }
 
   const models = [...new Set([env.museModel, ...env.museFallbackModels].filter(Boolean))];
-  let stream: AsyncIterable<{ choices: { delta?: { content?: string | null } }[] }> | undefined;
+  let stream: AsyncIterable<{ type: string; delta?: string }> | undefined;
   let lastModelError: unknown;
 
   // During an outage Meta's models flicker on and off minute to minute, so if every one is down
@@ -40,13 +40,20 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
     for (const model of models) {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          stream = await client.chat.completions.create(
+          const instructions = messages
+            .filter((message) => message.role === "developer")
+            .map((message) => message.content)
+            .join("\n\n");
+          const input = messages
+            .filter((message) => message.role !== "developer")
+            .map((message) => ({ role: message.role, content: message.content }));
+
+          stream = await client.responses.create(
             {
               model,
-              messages,
+              ...(instructions ? { instructions } : {}),
+              input,
               stream: true,
-              // Reasoning delays the first token; minimal keeps the live build feeling instant.
-              reasoning_effort: "minimal",
             },
             { signal },
           );
@@ -67,9 +74,8 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
   }
 
   if (!stream) throw lastModelError ?? new Error("No Muse model is available");
-  for await (const chunk of stream) {
-    const text = chunk.choices[0]?.delta?.content;
-    if (text) yield text;
+  for await (const event of stream) {
+    if (event.type === "response.output_text.delta" && event.delta) yield event.delta;
   }
 }
 
@@ -162,13 +168,13 @@ export async function diagnoseMuse() {
   for (const model of [
     ...new Set([env.museModel, ...env.museFallbackModels].filter(Boolean)),
   ]) {
-    tests[model] = await fetch(`${env.museBaseUrl}/chat/completions`, {
+    tests[model] = await fetch(`${env.museBaseUrl}/responses`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model,
-        messages: [{ role: "user", content: "ok" }],
-        max_tokens: 1,
+        input: "Reply with ok.",
+        max_output_tokens: 1,
       }),
       signal: AbortSignal.timeout(20_000),
     })
