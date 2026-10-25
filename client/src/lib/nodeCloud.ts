@@ -23,7 +23,7 @@ const TRASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
 // lucide-style icon paths, 24-unit grid; drawn both in HTML and onto node textures
-const ICON = {
+export const ICON = {
   slides: "M2 3h20M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3M7 21l5-5 5 5",
   doc: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7ZM14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8",
   sheet: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM3 9h18M9 3v18",
@@ -41,18 +41,18 @@ const ICON = {
   music: "M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6a3 3 0 0 0 0 6zM18 19a3 3 0 1 0 0-6a3 3 0 0 0 0 6z",
   video: "M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8zM4 11l-.88-2.87a2 2 0 0 1 1.33-2.5l11.48-3.5a2 2 0 0 1 2.5 1.33L19 6.3zM6.6 4.99l3.38 4.2M11.86 3.38l3.38 4.2",
 };
-const iconSvg = (k) =>
+export const iconSvg = (k) =>
   `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON[k]}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 // colors and suggestions match KINDS / BOARD_TEMPLATES in kinds.ts
-const TOOL_DEFS = [
+export const TOOL_DEFS = [
   { id: "slides", name: "Presentation", noun: "presentation", color: "#f59e0b", pos: [0, 1.65, 0.7], ask: "Make a pitch about sustainable coffee" },
   { id: "doc", name: "Document", noun: "document", color: "#2563eb", pos: [-2.4, -0.25, 1.1], ask: "Write a one-page project proposal for a campus app" },
   { id: "sheet", name: "Spreadsheet", noun: "spreadsheet", color: "#059669", pos: [2.4, -0.45, 0.9], ask: "Build a monthly student budget with a pie chart" },
   { id: "notes", name: "Notes", noun: "notes", color: "#eab308", pos: [0.1, -1.75, 0.5], ask: "Plan my hackathon weekend with a packing checklist" },
 ];
-const DEV_DEFS = [
+export const DEV_DEFS = [
   { id: "whiteboard", name: "Whiteboard", noun: "whiteboard", color: "#db2777", ask: "Brainstorm features for a campus app" },
   { id: "flowchart", name: "Flowchart", noun: "flowchart", color: "#0284c7", ask: "Flowchart of a user login flow with 2FA" },
   { id: "blueprint", name: "Blueprint", noun: "floor plan", color: "#1d4ed8", ask: "Floor plan for a 2-bedroom, 1-bath apartment" },
@@ -60,7 +60,7 @@ const DEV_DEFS = [
   { id: "erd", name: "DB schema", noun: "database schema", color: "#0d9488", ask: "Schema for a course registration system" },
   { id: "mindmap", name: "Mind map", noun: "mind map", color: "#c026d3", ask: "Mind map of hackathon ideas about sustainability" },
 ];
-const MEDIA_DEFS = [
+export const MEDIA_DEFS = [
   { id: "studio", name: "3D Studio", noun: "3D scene", color: "#9333ea", ask: "Build a cozy coffee shop with tables, a counter and plants" },
   { id: "music", name: "Music", noun: "track", color: "#65a30d", ask: "Upbeat lo-fi hip hop with warm piano, for studying" },
   { id: "video", name: "Video", noun: "clip", color: "#dc2626", ask: "A paper airplane gliding over a desk of pencil sketches" },

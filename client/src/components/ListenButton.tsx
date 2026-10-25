@@ -51,7 +51,7 @@ export function ListenButton({ className }: { className?: string }) {
             <MenuItem
               icon={<ScreenShare className="size-4" />}
               title="Hear the whole call"
-              detail="Share your Zoom, Meet or Teams window or tab with audio on, so nodepad hears everyone."
+              detail="Share your Zoom, Meet or Teams tab or screen with audio on. Uses only the meeting audio; hold Space to add your own voice."
               onClick={() => pick(true)}
             />
           )}

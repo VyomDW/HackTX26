@@ -8,6 +8,7 @@ import { BoardEditor } from "@/components/board/BoardEditor";
 import { DocEditor } from "@/components/DocEditor";
 import { Dock } from "@/components/Dock";
 import { Home } from "@/components/Home";
+import { Landing } from "@/components/Landing";
 import { MediaStudio } from "@/components/MediaStudio";
 import { useVoiceBridge } from "@/components/MicButton";
 import { NotesEditor } from "@/components/NotesEditor";
@@ -17,7 +18,7 @@ import { SheetEditor } from "@/components/SheetEditor";
 import { StudioEditor } from "@/components/StudioEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
 import { useIdentity } from "@/lib/identity";
-import { metaOf } from "@/lib/kinds";
+import { homeUrl, metaOf } from "@/lib/kinds";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
@@ -28,8 +29,25 @@ const roomId = params.get("room");
 
 export default function App() {
   const { userId, name, setName, suggestedName } = useIdentity();
+  const [home, setHome] = useState(() => params.has("home"));
+  // the landing page's "go to node" pushes ?home, so Back returns to the landing page
+  useEffect(() => {
+    const onPop = () => setHome(new URLSearchParams(location.search).has("home"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   if (params.has("media")) return <MediaStudio initialTab={params.get("media") === "video" ? "video" : "music"} initialPrompt={params.get("q") ?? undefined} />;
-  if (!roomId) return <Home />;
+  if (!roomId)
+    return home ? (
+      <Home />
+    ) : (
+      <Landing
+        onEnter={() => {
+          history.pushState(null, "", homeUrl());
+          setHome(true);
+        }}
+      />
+    );
   // Nobody joins a file until they have a name, so the transcript and the AI prompt never show a raw id.
   if (!name)
     return (
@@ -176,7 +194,7 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 bg-page px-3 print:hidden sm:gap-3 lg:px-4">
-      <a href={location.pathname} title="All files" className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-display text-[17px] font-bold hover:bg-slate-100">
+      <a href={homeUrl()} title="All files" className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-display text-[17px] font-bold hover:bg-slate-100">
         <Logo />
         <span className="max-sm:hidden">nodepad</span>
         <LayoutGrid className="size-3.5 text-dim" />
@@ -205,7 +223,7 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
             onClick={() => {
               if (!confirm(`Delete "${doc.title}"? This removes it for everyone.`)) return;
               fetch(`/api/docs/${encodeURIComponent(roomId)}`, { method: "DELETE" })
-                .then((r) => (r.ok ? location.assign(location.pathname) : Promise.reject()))
+                .then((r) => (r.ok ? location.assign(homeUrl()) : Promise.reject()))
                 .catch(() => alert("Couldn't delete this file. Try again."));
             }}
             className="grid size-7 shrink-0 place-items-center rounded-md text-dim hover:bg-red-50 hover:text-red-600"

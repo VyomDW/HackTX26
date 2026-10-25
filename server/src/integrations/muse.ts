@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import OpenAI from "openai";
+import OpenAI, { APIError } from "openai";
 import { env } from "../env";
 
 export interface ChatMessage {
@@ -39,27 +39,45 @@ let working = 0;
 
 async function openStream(client: OpenAI, messages: ChatMessage[], signal?: AbortSignal) {
   for (let i = working; i < MODELS.length; i++) {
-    try {
-      const stream = await client.chat.completions.create(
-        {
-          model: MODELS[i]!,
-          messages,
-          stream: true,
-          // Reasoning delays the first token; minimal keeps the live build feeling instant.
-          reasoning_effort: "minimal",
-        },
-        { signal },
-      );
-      if (i !== working) console.warn(`[muse] ${MODELS[working]} unavailable, using ${MODELS[i]}`);
-      working = i;
-      return stream;
-    } catch (err) {
-      const missing = err instanceof OpenAI.APIError && err.status === 404;
-      if (!missing || i === MODELS.length - 1) throw err;
+    // Meta's "model not found" is sometimes a blip, so retry briefly before moving on to the next model.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const stream = await client.chat.completions.create(
+          {
+            model: MODELS[i]!,
+            messages,
+            stream: true,
+            // Reasoning delays the first token; minimal keeps the live build feeling instant.
+            reasoning_effort: "minimal",
+          },
+          { signal },
+        );
+        if (i !== working) console.warn(`[muse] ${MODELS[working]} unavailable, using ${MODELS[i]}`);
+        working = i;
+        return stream;
+      } catch (err) {
+        const missing = err instanceof APIError && err.status === 404;
+        if (!missing || signal?.aborted) throw err;
+        if (attempt === 0) await sleep(500, signal);
+        else if (i === MODELS.length - 1) throw err;
+      }
     }
   }
   throw new Error("no Muse model available");
 }
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
 
 /** Streams a recorded response line by line, paced like the real model. */
 async function* replayFixture(path: string, signal?: AbortSignal): AsyncGenerator<string> {
@@ -75,7 +93,7 @@ async function* replayFixture(path: string, signal?: AbortSignal): AsyncGenerato
 async function* mockStream(messages: ChatMessage[], signal?: AbortSignal): AsyncGenerator<string> {
   const id = `s${Date.now().toString(36).slice(-4)}`;
   const last = messages.at(-1)?.content ?? "";
-  const title = /Request:\s*([\s\S]*)$/.exec(last)?.[1]?.trim() || "Untitled";
+  const title = /Request:\\s*([\\s\\S]*)$/.exec(last)?.[1]?.trim() || "Untitled";
   const lines = [
     { type: "add_slide", id, layout: "bullets" },
     { type: "set_text", slideId: id, elementId: `${id}-title`, text: title.slice(0, 60) },

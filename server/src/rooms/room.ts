@@ -18,7 +18,7 @@ import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai"
 import { findSourcedImage, generateImage, imagesEnabled, sourcedImagesEnabled } from "../integrations/image";
 import { research, type Research } from "../integrations/research";
 import { callMuse, type ChatMessage } from "../integrations/muse";
-import { lines } from "../ndjson";
+import { jsonObjects, lines } from "../ndjson";
 import { loadRooms, scheduleSave } from "./store";
 import { describeDocument, SYSTEM_PROMPTS } from "./prompts";
 
@@ -227,46 +227,53 @@ export class Room {
     try {
       for await (const line of lines(callMuse(messages, controller.signal))) {
         if (controller.signal.aborted) return;
-        if (!applied.length) this.broadcast({ type: "ai_status", status: "streaming" });
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(line);
-        } catch {
+        const candidates = jsonObjects(line);
+        if (!candidates.length) {
           console.warn(`[room ${this.id}] malformed line`, line);
           continue;
         }
-        const op = MODEL_OPS[this.kind].safeParse(parsed);
-        if (!op.success) {
-          console.warn(`[room ${this.id}] invalid op`, line);
-          continue;
-        }
-        if (op.data.type === "add_citation") {
-          const citation = op.data;
-          const match = sources.find((source) => source.url === citation.url && source.title === citation.source);
-          if (!match) {
-            console.warn("[room " + this.id + "] dropped citation not found in SerpApi results", citation);
+        for (const candidate of candidates) {
+          if (!applied.length) this.broadcast({ type: "ai_status", status: "streaming" });
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(candidate);
+          } catch {
+            console.warn(`[room ${this.id}] malformed JSON object`, candidate);
             continue;
           }
-        }
-        if (this.doc.kind === "slides" && op.data.type === "add_image" && !op.data.url) {
-          const imageOp = op.data;
-          const slide = this.doc.slides.find((s) => s.id === imageOp.slideId);
-          if (slide?.layout === "title") imageOp.box = { x: 900, y: 500, w: 340, h: 190 };
-          const existing = slide?.elements.find((element) => element.id === imageOp.elementId);
-          if (existing?.kind === "image") {
-            this.apply({ type: "delete_element", slideId: imageOp.slideId, elementId: imageOp.elementId }, "ai", meta);
-            for (const citation of [...(slide?.citations ?? [])]) {
-              this.apply({ type: "remove_citation", slideId: imageOp.slideId, citationId: citation.id }, "ai", meta);
+          const op = MODEL_OPS[this.kind].safeParse(parsed);
+          if (!op.success) {
+            console.warn(`[room ${this.id}] invalid op`, candidate);
+            continue;
+          }
+          if (op.data.type === "add_citation") {
+            const citation = op.data;
+            const match = sources.find((source) => source.url === citation.url && source.title === citation.source);
+            if (!match) {
+              console.warn("[room " + this.id + "] dropped citation not found in SerpApi results", citation);
+              continue;
             }
           }
-        }
-        // A dropped add_slide would otherwise sink every later edit to that slide, so recreate it on demand.
-        const missing = this.missingSlide(op.data);
-        if (missing && this.apply(missing, "ai", meta)) applied.push(JSON.stringify(missing));
-        if (this.apply(op.data, "ai", meta)) {
-          this.illustrate(op.data, meta, requests.map((r) => r.text).join("\n"));
-          applied.push(line);
-          reply.text = applied.join("\n");
+          if (this.doc.kind === "slides" && op.data.type === "add_image" && !op.data.url) {
+            const imageOp = op.data;
+            const slide = this.doc.slides.find((s) => s.id === imageOp.slideId);
+            if (slide?.layout === "title") imageOp.box = { x: 900, y: 500, w: 340, h: 190 };
+            const existing = slide?.elements.find((element) => element.id === imageOp.elementId);
+            if (existing?.kind === "image") {
+              this.apply({ type: "delete_element", slideId: imageOp.slideId, elementId: imageOp.elementId }, "ai", meta);
+              for (const citation of [...(slide?.citations ?? [])]) {
+                this.apply({ type: "remove_citation", slideId: imageOp.slideId, citationId: citation.id }, "ai", meta);
+              }
+            }
+          }
+          // A dropped add_slide would otherwise sink every later edit to that slide, so recreate it on demand.
+          const missing = this.missingSlide(op.data);
+          if (missing && this.apply(missing, "ai", meta)) applied.push(JSON.stringify(missing));
+          if (this.apply(op.data, "ai", meta)) {
+            this.illustrate(op.data, meta, requests.map((r) => r.text).join("\n"));
+            applied.push(candidate);
+            reply.text = applied.join("\n");
+          }
         }
       }
     } catch (err) {

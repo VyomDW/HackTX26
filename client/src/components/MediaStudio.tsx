@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Clapperboard, Download, Loader2, Music, TriangleAlert, X } from "lucide-react";
+import { homeUrl } from "@/lib/kinds";
 import { cn } from "@/lib/utils";
 import { Logo } from "./Logo";
 
@@ -130,7 +131,7 @@ export function MediaStudio({ initialTab, initialPrompt }: { initialTab: Tab; in
   return (
     <div className="ink min-h-dvh bg-page font-ui text-ink">
       <header className="flex h-14 items-center gap-3 px-4 sm:px-8">
-        <a href={location.pathname} title="All files" className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-[17px] font-bold hover:bg-slate-100">
+        <a href={homeUrl()} title="All files" className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-[17px] font-bold hover:bg-slate-100">
           <Logo />
           nodepad
         </a>
