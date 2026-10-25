@@ -43,7 +43,7 @@ const timers = new Map<string, ReturnType<typeof setTimeout>>();
 /** Debounced write: a burst of AI edits becomes one save. Writes go through a temp file so a crash can't truncate. */
 export function scheduleSave(room: Room) {
   room.updatedAt = Date.now();
-  if (!enabled) return;
+  if (!enabled || room.deleted) return;
   clearTimeout(timers.get(room.id));
   timers.set(
     room.id,

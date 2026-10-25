@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, LayoutGrid, Link2, Loader2, X } from "lucide-react";
+import { Check, LayoutGrid, Link2, Loader2, Trash2, X } from "lucide-react";
 import { BoardTemplate, DocKind } from "@hacktx/shared";
 import { Activity, AiAvatar } from "@/components/Activity";
 import { Logo } from "@/components/Logo";
@@ -195,6 +195,22 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
           className="min-w-0 max-w-[34vw] truncate rounded-md bg-transparent px-1.5 py-1 text-sm font-semibold outline-none hover:bg-slate-100 focus:bg-slate-100 sm:max-w-md"
           aria-label="File name"
         />
+        {loaded && (
+          <button
+            type="button"
+            title="Delete file"
+            aria-label="Delete file"
+            onClick={() => {
+              if (!confirm(`Delete "${doc.title}"? This removes it for everyone.`)) return;
+              fetch(`/api/docs/${encodeURIComponent(roomId)}`, { method: "DELETE" })
+                .then((r) => (r.ok ? location.assign(location.pathname) : Promise.reject()))
+                .catch(() => alert("Couldn't delete this file. Try again."));
+            }}
+            className="grid size-7 shrink-0 place-items-center rounded-md text-dim hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
       </div>
       <div
         className={cn(

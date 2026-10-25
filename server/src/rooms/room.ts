@@ -53,6 +53,8 @@ interface Applied {
 export class Room {
   doc: Document;
   members = new Set<Member>();
+  /** Set once the file is deleted, so a late AI edit can't save it back to disk. */
+  deleted = false;
   history: Applied[] = [];
   conversation: { role: "user" | "assistant"; text: string }[] = [];
   turns: Turn[] = [];
@@ -394,4 +396,12 @@ export const getRoom = (id: string, kind: DocKind = "slides") => {
 
 export const listRooms = () => [...rooms.values()];
 
-export const deleteRoom = (id: string) => rooms.delete(id);
+/** Removes a room and sends anyone still in it back to the home screen (close code 4404). */
+export const deleteRoom = (id: string) => {
+  const room = rooms.get(id);
+  if (!room) return;
+  rooms.delete(id);
+  room.deleted = true;
+  for (const m of room.members) m.socket.close(4404, "deleted");
+  room.members.clear();
+};
