@@ -1,5 +1,8 @@
 FROM node:24-alpine
 
+# ffmpeg converts generated media; ffmpeg-static is bundled too, this is the fallback.
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /app
 
 COPY package.json package-lock.json tsconfig.base.json ./

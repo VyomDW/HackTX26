@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import ffmpegStatic from "ffmpeg-static";
 import { env } from "../env";
 
 /**
@@ -11,6 +12,8 @@ import { env } from "../env";
  */
 
 const run = promisify(execFile);
+/** Bundled ffmpeg first, so hosts without it installed (Vercel, Render) can still convert. */
+const FFMPEG = process.env.FFMPEG_PATH || (ffmpegStatic as unknown as string | null) || "ffmpeg";
 export const MEDIA_DIR = path.resolve(process.env.MEDIA_DIR || "data/media");
 const JOBS_FILE = path.join(MEDIA_DIR, "jobs.json");
 const API = "https://api.replicate.com/v1";
@@ -135,10 +138,24 @@ async function generate(job: MediaJob) {
   if (!res.ok) throw new Error(`download failed (${res.status})`);
   await writeFile(source, Buffer.from(await res.arrayBuffer()));
 
-  const ff = (...args: string[]) => run("ffmpeg", ["-y", "-loglevel", "error", ...args], { maxBuffer: 1 << 24 });
+  const ff = (...args: string[]) => run(FFMPEG, ["-y", "-loglevel", "error", ...args], { maxBuffer: 1 << 24 });
+  try {
+    await convert(job, dir, source, ext, ff);
+  } catch (err) {
+    // The generation already succeeded (and was paid for), so hand over Replicate's original file rather than fail.
+    console.warn(`[media ${job.id}] conversion failed, serving the original`, err instanceof Error ? err.message : err);
+    job.preview = `original.${ext}`;
+    job.files = [{ name: `original.${ext}`, label: ext.toUpperCase() }];
+  }
+  job.status = "done";
+  job.finishedAt = Date.now();
+  await save();
+}
+
+async function convert(job: MediaJob, dir: string, source: string, ext: string, ff: (...args: string[]) => Promise<unknown>) {
   if (job.kind === "video") {
     // Re-encode to H.264/AAC so the mp4 and mov play everywhere, QuickTime and phones included.
-    await ff("-i", source, "-c:v", "libx264", "-crf", "17", "-preset", "slow", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", path.join(dir, "video.mp4"));
+    await ff("-i", source, "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", path.join(dir, "video.mp4"));
     await ff("-i", path.join(dir, "video.mp4"), "-c", "copy", path.join(dir, "video.mov"));
     job.preview = "video.mp4";
     job.files = [
@@ -163,9 +180,6 @@ async function generate(job: MediaJob) {
       { name: `original.${ext}`, label: ext.toUpperCase() },
     ];
   }
-  job.status = "done";
-  job.finishedAt = Date.now();
-  await save();
 }
 
 /** Deletes a finished or failed generation and its files. Returns false if there is nothing to remove yet. */
