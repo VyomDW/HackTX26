@@ -17,6 +17,10 @@ const Saved = z.object({
   turns: z.array(Turn),
   conversation: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string() })),
   updatedAt: z.number(),
+  /** Account that created the file (missing on files saved before accounts existed). */
+  ownerId: z.string().optional(),
+  /** Accounts that have the file in their list: the owner and everyone who opened its invite link. */
+  access: z.array(z.string()).default([]),
 });
 
 const fileOf = (id: string) => path.join(DIR, `${encodeURIComponent(id)}.json`);
@@ -29,7 +33,7 @@ export function loadRooms(make: (id: string, kind: Document["kind"]) => Room): M
     try {
       const saved = Saved.parse(JSON.parse(readFileSync(path.join(DIR, file), "utf8")));
       const room = make(saved.id, saved.doc.kind);
-      Object.assign(room, { doc: saved.doc, turns: saved.turns, conversation: saved.conversation, updatedAt: saved.updatedAt });
+      Object.assign(room, { doc: saved.doc, turns: saved.turns, conversation: saved.conversation, updatedAt: saved.updatedAt, ownerId: saved.ownerId, access: new Set(saved.access) });
       rooms.set(saved.id, room);
     } catch (err) {
       console.warn(`[store] skipping unreadable ${file}`, err);
@@ -49,7 +53,7 @@ export function scheduleSave(room: Room) {
     room.id,
     setTimeout(() => {
       timers.delete(room.id);
-      const data = { id: room.id, doc: room.doc, turns: room.turns, conversation: room.conversation, updatedAt: room.updatedAt };
+      const data = { id: room.id, doc: room.doc, turns: room.turns, conversation: room.conversation, updatedAt: room.updatedAt, ownerId: room.ownerId, access: [...room.access] };
       try {
         mkdirSync(DIR, { recursive: true });
         const tmp = `${fileOf(room.id)}.tmp`;

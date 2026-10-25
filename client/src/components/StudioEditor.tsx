@@ -5,6 +5,7 @@ import { commit } from '@/store/editor';
 import { undoMine, redoMine } from '@/lib/actions';
 import { SceneViewport } from './SceneViewport';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/auth';
 
 // Shared ink-theme classes for the studio's controls.
 const tb='h-8 shrink-0 rounded-md px-2 text-xs font-medium hover:bg-slate-100';
@@ -37,15 +38,15 @@ export function StudioEditor({scene,onPrompt}:{scene:Studio;onPrompt:(text:strin
   };
   const updateJob=(id:string,patch:Partial<GenerationJob>)=>setJobs(current=>current.map(job=>job.id===id?{...job,...patch}:job));
   const pollTask=async(taskId:string,onProgress:(value:number)=>void)=>{
-    for(let attempt=0;attempt<120;attempt++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await fetch(`/api/studio/meshy/tasks/${encodeURIComponent(taskId)}`);const status=await response.json() as {status?:string;progress?:number;assetUrl?:string;error?:string};if(!response.ok)throw new Error(status.error||'Could not check generation.');onProgress(status.progress??0);if(status.status==='SUCCEEDED')return status;if(status.status==='FAILED'||status.status==='CANCELED')throw new Error(status.error||'3D generation failed.');}
+    for(let attempt=0;attempt<120;attempt++){await new Promise(resolve=>setTimeout(resolve,2000));const response=await api(`/studio/meshy/tasks/${encodeURIComponent(taskId)}`);const status=await response.json() as {status?:string;progress?:number;assetUrl?:string;error?:string};if(!response.ok)throw new Error(status.error||'Could not check generation.');onProgress(status.progress??0);if(status.status==='SUCCEEDED')return status;if(status.status==='FAILED'||status.status==='CANCELED')throw new Error(status.error||'3D generation failed.');}
     throw new Error('Generation is taking longer than expected.');
   };
   const runApiJob=async(job:GenerationJob)=>{
     try{
-      updateJob(job.id,{status:'Building geometry'});const started=await fetch('/api/studio/meshy/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:job.prompt,quality:job.quality})});const task=await started.json() as {result?:string;error?:string};if(!started.ok||!task.result)throw new Error(task.error||'Could not start generation.');
+      updateJob(job.id,{status:'Building geometry'});const started=await api('/studio/meshy/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:job.prompt,quality:job.quality})});const task=await started.json() as {result?:string;error?:string};if(!started.ok||!task.result)throw new Error(task.error||'Could not start generation.');
       const preview=await pollTask(task.result,value=>updateJob(job.id,{progress:job.quality==='high'?Math.round(value/2):value}));
       if(job.quality==='medium'){if(!preview.assetUrl)throw new Error('Meshy returned no model file.');addModel(preview.assetUrl,job.prompt.slice(0,50));updateJob(job.id,{progress:100,status:'Added to scene'});return;}
-      updateJob(job.id,{progress:50,status:'Adding PBR textures'});const refined=await fetch('/api/studio/meshy/refine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({previewTaskId:task.result,prompt:job.prompt})});const refineTask=await refined.json() as {result?:string;error?:string};if(!refined.ok||!refineTask.result)throw new Error(refineTask.error||'Could not start texturing.');const final=await pollTask(refineTask.result,value=>updateJob(job.id,{progress:50+Math.round(value/2)}));if(!final.assetUrl)throw new Error('Meshy returned no textured model.');addModel(final.assetUrl,job.prompt.slice(0,50));updateJob(job.id,{progress:100,status:'Added to scene'});
+      updateJob(job.id,{progress:50,status:'Adding PBR textures'});const refined=await api('/studio/meshy/refine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({previewTaskId:task.result,prompt:job.prompt})});const refineTask=await refined.json() as {result?:string;error?:string};if(!refined.ok||!refineTask.result)throw new Error(refineTask.error||'Could not start texturing.');const final=await pollTask(refineTask.result,value=>updateJob(job.id,{progress:50+Math.round(value/2)}));if(!final.assetUrl)throw new Error('Meshy returned no textured model.');addModel(final.assetUrl,job.prompt.slice(0,50));updateJob(job.id,{progress:100,status:'Added to scene'});
     }catch(error){updateJob(job.id,{status:'Failed',error:error instanceof Error?error.message:'3D generation failed.'});}
   };
   const generateModel=()=>{

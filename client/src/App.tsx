@@ -15,9 +15,10 @@ import { NotesEditor } from "@/components/NotesEditor";
 import { NameDialog, PresenceStack } from "@/components/Presence";
 import { Present, PrintDeck } from "@/components/Present";
 import { SheetEditor } from "@/components/SheetEditor";
+import { SignIn } from "@/components/SignIn";
 import { StudioEditor } from "@/components/StudioEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
-import { useIdentity } from "@/lib/identity";
+import { api, rename, useAuth } from "@/lib/auth";
 import { homeUrl, metaOf } from "@/lib/kinds";
 import { useRoomSocket } from "@/lib/socket";
 import { cn } from "@/lib/utils";
@@ -28,7 +29,8 @@ const params = new URLSearchParams(location.search);
 const roomId = params.get("room");
 
 export default function App() {
-  const { userId, name, setName, suggestedName } = useIdentity();
+  const account = useAuth((s) => s.account);
+  const authStatus = useAuth((s) => s.status);
   const [home, setHome] = useState(() => params.has("home"));
   // the landing page's "go to node" pushes ?home, so Back returns to the landing page
   useEffect(() => {
@@ -36,11 +38,9 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  if (params.has("media")) return <MediaStudio initialTab={params.get("media") === "video" ? "video" : "music"} initialPrompt={params.get("q") ?? undefined} />;
-  if (!roomId)
-    return home ? (
-      <Home />
-    ) : (
+  const media = params.has("media");
+  if (!roomId && !media && !home)
+    return (
       <Landing
         onEnter={() => {
           history.pushState(null, "", homeUrl());
@@ -48,22 +48,27 @@ export default function App() {
         }}
       />
     );
-  // Nobody joins a file until they have a name, so the transcript and the AI prompt never show a raw id.
-  if (!name)
+  // Everything past the landing page belongs to an account; an invite link signs in first, then opens the file.
+  if (authStatus === "loading")
     return (
-      <div className="ink stage-bg h-dvh">
-        <NameDialog initial={suggestedName} onSave={setName} />
+      <div className="ink">
+        <div className="stage-bg grid h-dvh place-items-center text-dim">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
       </div>
     );
+  if (!account) return <SignIn invited={!!roomId} />;
+  if (media) return <MediaStudio initialTab={params.get("media") === "video" ? "video" : "music"} initialPrompt={params.get("q") ?? undefined} />;
+  if (!roomId) return <Home />;
   return (
     <Workspace
       roomId={roomId}
       kind={DocKind.safeParse(params.get("kind")).data}
       initialPrompt={params.get("q") ?? undefined}
       template={BoardTemplate.safeParse(params.get("template")).data}
-      userId={userId}
-      name={name}
-      onRename={setName}
+      userId={account.id}
+      name={account.name}
+      onRename={(next) => rename(next).catch((err: Error) => useDoc.getState().setError(err.message))}
     />
   );
 }
@@ -221,10 +226,15 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
             title="Delete file"
             aria-label="Delete file"
             onClick={() => {
-              if (!confirm(`Delete "${doc.title}"? This removes it for everyone.`)) return;
-              fetch(`/api/docs/${encodeURIComponent(roomId)}`, { method: "DELETE" })
-                .then((r) => (r.ok ? location.assign(homeUrl()) : Promise.reject()))
-                .catch(() => alert("Couldn't delete this file. Try again."));
+              void (async () => {
+                // the owner deletes it for everyone; anyone it was shared with just drops it from their files
+                const files = (await api("/docs").then((r) => r.json()).catch(() => [])) as { id: string; mine: boolean }[];
+                const mine = files.find((f) => f.id === roomId)?.mine ?? true;
+                if (!confirm(mine ? `Delete "${doc.title}"? This removes it for everyone.` : `Remove "${doc.title}" from your files? It stays shared with everyone else.`)) return;
+                api(`/docs/${encodeURIComponent(roomId)}`, { method: "DELETE" })
+                  .then((r) => (r.ok ? location.assign(homeUrl()) : Promise.reject()))
+                  .catch(() => alert("Couldn't delete this file. Try again."));
+              })();
             }}
             className="grid size-7 shrink-0 place-items-center rounded-md text-dim hover:bg-red-50 hover:text-red-600"
           >

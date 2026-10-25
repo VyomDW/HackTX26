@@ -361,7 +361,7 @@ npm run dev
 - App: http://127.0.0.1:5176 (Vite proxies `/api` and `/ws` to the server)
 - Server: http://localhost:8787 (`/health`)
 
-Open a second browser tab on the same file link to see live co-editing.
+Create an account on the sign-in screen (everything past the landing page needs one). To see live co-editing, click **Invite** in a file and open that link in a private window signed in as a second account.
 
 ### Configuration
 
@@ -376,6 +376,7 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 | `MESHY_API_KEY` | Text-to-3D models | 3D Studio uses primitives only |
 | `MUSE_FIXTURE` | Replays a recorded NDJSON response | |
 | `PORT`, `CLIENT_ORIGIN` | Server port and CORS origin | 8787 and the Vite origin |
+| `ROOM_DIR`, `AUTH_FILE` | Where files and accounts are saved | `data/rooms` and `data/auth.json` under `server/` |
 
 ### Scripts
 
@@ -431,7 +432,7 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 
 | Browser → server | Purpose |
 | --- | --- |
-| `join` | Enter a room (creates it with the given kind if new) |
+| `join` | Enter a room with your session `token` (creates it with the given kind if new; adds it to your files) |
 | `prompt` | Ask the AI for a change |
 | `ops` | Direct editor changes (one undo step) |
 | `undo` / `undo_turn` | Revert one op or a whole AI response |
@@ -450,9 +451,13 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 
 ### HTTP
 
+Everything except `/auth/*`, `/health` and the image, media and 3D asset downloads needs `Authorization: Bearer <token>`.
+
 | Route | Purpose |
 | --- | --- |
-| `GET /docs`, `DELETE /docs/:id` | Workspace file list and deletion |
+| `POST /auth/signup`, `/auth/login`, `/auth/logout` | Accounts; sign-up and sign-in return a session token |
+| `GET/PATCH /auth/me` | The signed-in account, and renaming it |
+| `GET /docs`, `DELETE /docs/:id` | Your files (yours and shared with you); delete removes it for everyone if you own it, else from your list |
 | `POST /rooms/:roomId/voice` | WAV clip in, transcript out (`?mode=listen&source=call` for Listen) |
 | `GET /images/:file` | Generated images |
 | `GET/POST /media`, `GET/DELETE /media/:id…` | Music and video jobs and downloads |
