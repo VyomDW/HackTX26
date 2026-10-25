@@ -21,7 +21,10 @@ export function Popover({
     if (!open || !anchor.current) return;
     const r = anchor.current.getBoundingClientRect();
     const width = panel.current?.offsetWidth ?? 0;
-    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top: r.bottom + 4 });
+    const height = panel.current?.offsetHeight ?? 0;
+    // Open upward when a trigger near the bottom of the screen would push the panel off it.
+    const top = r.bottom + 4 + height > window.innerHeight - 8 && r.top - 4 - height >= 8 ? r.top - 4 - height : r.bottom + 4;
+    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top });
   }, [open]);
 
   useEffect(() => {

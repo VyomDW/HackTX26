@@ -5,10 +5,12 @@ import { redoMine, undoMine } from "@/lib/actions";
 import { shortId } from "@/lib/canvas";
 import { download, safeName } from "@/lib/download";
 import { MarkdownBody, toggleChecklistLine } from "@/lib/markdown";
+import { downloadBlob, notebookToDocx } from "@/lib/office";
 import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
 import { commit } from "@/store/editor";
-import { Sep, Tool } from "./DocEditor";
+import { MenuItem, Sep, Tool } from "./DocEditor";
+import { Popover } from "./ui/popover";
 
 const COLORS = ["#fef3c7", "#dcfce7", "#dbeafe", "#fce7f3", "#ede9fe", "#ffedd5", "#f1f5f9"];
 
@@ -122,9 +124,34 @@ export function NotesEditor({ book }: { book: Notebook }) {
         </div>
         <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs text-slate-400">
           <span>{book.notes.length} notes</span>
-          <button onClick={exportAll} className="flex items-center gap-1 hover:text-slate-700">
-            <Download className="size-3.5" /> Export
-          </button>
+          <Popover
+            trigger={() => (
+              <button className="flex items-center gap-1 hover:text-slate-700">
+                <Download className="size-3.5" /> Export
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="flex w-48 flex-col text-sm text-slate-700">
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    void notebookToDocx(book).then((blob) => downloadBlob(`${safeName(book.title)}.docx`, blob));
+                  }}
+                >
+                  Word document (.docx)
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    exportAll();
+                  }}
+                >
+                  Markdown (.md)
+                </MenuItem>
+              </div>
+            )}
+          </Popover>
         </div>
       </aside>
 

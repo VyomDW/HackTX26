@@ -42,6 +42,8 @@ import {
 import { THEMES, themeOf, type ShapeKind, type Style } from "@hacktx/shared";
 import * as act from "@/lib/actions";
 import { FONT_SIZES, FONTS, SWATCHES } from "@/lib/canvas";
+import { safeName } from "@/lib/download";
+import { deckToPptx, downloadBlob } from "@/lib/office";
 import { cn } from "@/lib/utils";
 import { useDeck, selectDeck } from "@/store/deck";
 import { commit, useEditor } from "@/store/editor";
@@ -272,7 +274,34 @@ export function Toolbar() {
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
-        <Tool icon={FileDown} label="Export PDF" text="PDF" onClick={() => window.print()} disabled={!slide} />
+        {!slide ? (
+          <Tool icon={FileDown} label="Export" text="Export" caret disabled />
+        ) : (
+          <Popover trigger={() => <Tool icon={FileDown} label="Export" text="Export" caret />}>
+            {(close) => (
+              <div className="flex w-52 flex-col text-sm">
+                <button
+                  onClick={() => {
+                    close();
+                    void deckToPptx(deck).then((blob) => downloadBlob(`${safeName(deck.title)}.pptx`, blob));
+                  }}
+                  className="rounded-md px-2 py-1.5 text-left hover:bg-slate-100"
+                >
+                  PowerPoint (.pptx)
+                </button>
+                <button
+                  onClick={() => {
+                    close();
+                    window.print();
+                  }}
+                  className="rounded-md px-2 py-1.5 text-left hover:bg-slate-100"
+                >
+                  PDF (print)
+                </button>
+              </div>
+            )}
+          </Popover>
+        )}
         <button
           onClick={() => useEditor.setState({ presenting: true })}
           disabled={!slide}
