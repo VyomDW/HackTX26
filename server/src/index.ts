@@ -4,6 +4,7 @@ import staticFiles from "@fastify/static";
 import websocket from "@fastify/websocket";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
+import { diagnoseMuse } from "./integrations/muse";
 import { accountOf, Credentials, rename, requireAccount, signIn, signOut, signUp, tokenOf } from "./auth";
 import { claimUnowned, deleteRoom, getRoom, grantAccess, listRooms, revokeAccess, type Room } from "./rooms/room";
 import { removeSaved } from "./rooms/store";
@@ -31,6 +32,9 @@ await app.register(cors, { origin: env.clientOrigin });
 await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
+
+/** Can this server reach the AI? Key fingerprint, models visible from here, and a tiny test call per model. */
+app.get("/health/ai", async () => diagnoseMuse());
 
 /** Accounts: sign up, sign in, who am I, rename, sign out. Responses carry the session token the browser keeps. */
 app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {

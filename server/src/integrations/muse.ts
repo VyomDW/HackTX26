@@ -30,32 +30,40 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
   let stream: AsyncIterable<{ choices: { delta?: { content?: string | null } }[] }> | undefined;
   let lastModelError: unknown;
 
-  for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        stream = await client.chat.completions.create(
-          {
-            model,
-            messages,
-            stream: true,
-            // Reasoning delays the first token; minimal keeps the live build feeling instant.
-            reasoning_effort: "minimal",
-          },
-          { signal },
-        );
-        break;
-      } catch (err) {
-        // Meta sometimes omits the machine-readable error code, but 404 still means this model cannot serve the request.
-        const modelUnavailable = err instanceof APIError && err.status === 404;
-        if (!modelUnavailable || signal?.aborted) throw err;
-        lastModelError = err;
-        console.warn(`Muse model unavailable: ${model} (attempt ${attempt + 1})`);
-        if (attempt === 0) {
-          await waitForRetry(350, signal);
+  // During an outage Meta's models flicker on and off minute to minute, so if every one is down
+  // right now, wait a moment and go round the whole chain again before giving up.
+  for (let round = 0; round < 3 && !stream; round++) {
+    if (round > 0) {
+      console.warn(`Every Muse model was unavailable; retrying the chain (round ${round + 1})`);
+      await waitForRetry(800 * round, signal);
+    }
+    for (const model of models) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          stream = await client.chat.completions.create(
+            {
+              model,
+              messages,
+              stream: true,
+              // Reasoning delays the first token; minimal keeps the live build feeling instant.
+              reasoning_effort: "minimal",
+            },
+            { signal },
+          );
+          break;
+        } catch (err) {
+          // Meta sometimes omits the machine-readable error code, but 404 still means this model cannot serve the request.
+          const modelUnavailable = err instanceof APIError && err.status === 404;
+          if (!modelUnavailable || signal?.aborted) throw err;
+          lastModelError = err;
+          console.warn(`Muse model unavailable: ${model} (attempt ${attempt + 1})`);
+          if (attempt === 0) {
+            await waitForRetry(350, signal);
+          }
         }
       }
+      if (stream) break;
     }
-    if (stream) break;
   }
 
   if (!stream) throw lastModelError ?? new Error("No Muse model is available");
@@ -105,4 +113,80 @@ async function* mockStream(messages: ChatMessage[], signal?: AbortSignal): Async
     await new Promise((r) => setTimeout(r, 400));
     yield JSON.stringify(line) + "\n";
   }
+}
+
+/**
+ * What this server can actually reach on the Muse API: which key it uses (as a fingerprint, never the key),
+ * which models the API lists for that key from here, and a one-token test call to each configured model.
+ * Explains "works locally, fails when deployed" without anyone needing the logs.
+ */
+export async function diagnoseMuse() {
+  const { createHash } = await import("node:crypto");
+  const key = env.museApiKey;
+  const report: Record<string, unknown> = {
+    baseUrl: env.museBaseUrl,
+    keySource: process.env.MUSE_API_KEY
+      ? "MUSE_API_KEY"
+      : process.env.MODEL_API_KEY
+        ? "MODEL_API_KEY"
+        : "none",
+    keyFingerprint: key
+      ? createHash("sha256").update(key).digest("hex").slice(0, 10)
+      : null,
+    keyLength: key.length,
+    keyHasWhitespace: key !== key.trim(),
+  };
+  if (!key) return { ...report, verdict: "No API key is set on this server." };
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+  };
+  const listed = await fetch(`${env.museBaseUrl}/models`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  })
+    .then(async (r) => ({
+      status: r.status,
+      ids:
+        (
+          (await r.json().catch(() => ({}))) as { data?: { id: string }[] }
+        ).data?.map((m) => m.id) ?? [],
+    }))
+    .catch((err: Error) => ({
+      status: 0,
+      ids: [] as string[],
+      error: err.message,
+    }));
+  report.modelsListed = listed;
+  const tests: Record<string, string> = {};
+  for (const model of [
+    ...new Set([env.museModel, ...env.museFallbackModels].filter(Boolean)),
+  ]) {
+    tests[model] = await fetch(`${env.museBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "ok" }],
+        max_tokens: 1,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    })
+      .then(async (r) =>
+        r.ok
+          ? "ok"
+          : `${r.status} ${((await r.json().catch(() => ({}))) as { error?: { code?: string } }).error?.code ?? ""}`.trim(),
+      )
+      .catch((err: Error) => `unreachable: ${err.message}`);
+  }
+  report.modelTests = tests;
+  const working = Object.entries(tests).find(([, v]) => v === "ok")?.[0];
+  report.verdict = working
+    ? `Working: ${working} answers from this server.`
+    : listed.status === 401 || listed.status === 403
+      ? "The API rejected this key."
+      : listed.ids.length === 0
+        ? "The key is accepted but the API lists no models for it from here: a different key/account, or access blocked for this server's location."
+        : "The API lists models for this key, but none of the configured ones answer. Check MUSE_MODEL / MUSE_FALLBACK_MODELS against modelsListed.";
+  return report;
 }
