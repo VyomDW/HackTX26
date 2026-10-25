@@ -15,7 +15,7 @@ services:
       - key: MUSE_MODEL
         value: muse-spark-1.3-contributor
       - key: MUSE_FALLBACK_MODELS
-        value: muse-spark-1.2,muse-spark-1.1
+        value: muse-spark-1.2-contributor,muse-spark-1.2,muse-spark-1.1
       - key: MODEL_API_KEY
         sync: false
       - key: SERPAPI_KEY
