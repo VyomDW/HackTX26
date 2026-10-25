@@ -4,8 +4,11 @@ export const env = {
   museApiKey: process.env.MUSE_API_KEY || process.env.MODEL_API_KEY || "",
   museBaseUrl: process.env.MUSE_BASE_URL || "https://api.meta.ai/v1",
   museModel: process.env.MUSE_MODEL || "muse-spark-1.3",
-  // Used automatically when the primary model is temporarily unavailable or unavailable to this API key.
-  museFallbackModel: process.env.MUSE_FALLBACK_MODEL || "muse-spark-1.2",
+  // Tried in order when the primary model is temporarily unavailable or unavailable to this API key.
+  museFallbackModels: (process.env.MUSE_FALLBACK_MODELS || "muse-spark-1.2,muse-spark-1.1")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean),
   /** Path to a recorded NDJSON response to replay instead of calling Muse (tests, offline demo). */
   museFixture: process.env.MUSE_FIXTURE ?? "",
   // Separate so voice can run for real while Muse Spark is still on its mock.
