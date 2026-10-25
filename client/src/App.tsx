@@ -28,7 +28,7 @@ const roomId = params.get("room");
 
 export default function App() {
   const { userId, name, setName, suggestedName } = useIdentity();
-  if (params.has("media")) return <MediaStudio initialTab={params.get("media") === "video" ? "video" : "music"} />;
+  if (params.has("media")) return <MediaStudio initialTab={params.get("media") === "video" ? "video" : "music"} initialPrompt={params.get("q") ?? undefined} />;
   if (!roomId) return <Home />;
   // Nobody joins a file until they have a name, so the transcript and the AI prompt never show a raw id.
   if (!name)

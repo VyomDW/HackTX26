@@ -58,7 +58,7 @@ export function SceneViewport({ scene, selected, onSelect, mode, snap, reset, qu
     ctx.putImageData(pixels,0,0);
     const groundTexture=new T.CanvasTexture(surface);groundTexture.wrapS=groundTexture.wrapT=T.RepeatWrapping;groundTexture.repeat.set(80,80);groundTexture.colorSpace=T.SRGBColorSpace;
     const ground = new T.Mesh(new T.PlaneGeometry(200,200), new T.MeshStandardMaterial({color:'#65766a',roughness:.95,map:groundTexture,bumpMap:groundTexture,bumpScale:.025})); ground.rotation.x=-Math.PI/2; ground.position.y=-.02; ground.receiveShadow=true; world.add(ground);
-    const grid = new T.GridHelper(100,100,0x8796a8,0x627080); world.add(grid);
+    const grid = new T.GridHelper(100,100,0x9c9a90,0xcfcdc4); world.add(grid);
     const group = new T.Group(); world.add(group);
     runtime.current={scene:world,group,ground,grid,gizmo,orbit,camera,geometries:new Map()};
     const resize=()=>{camera.aspect=Math.max(1,el.clientWidth)/Math.max(1,el.clientHeight); camera.updateProjectionMatrix(); renderer.setSize(el.clientWidth,el.clientHeight);};

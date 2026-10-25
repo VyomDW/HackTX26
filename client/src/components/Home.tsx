@@ -35,6 +35,12 @@ export function Home() {
               if (!r.ok) throw new Error(`delete failed: ${r.status}`);
             }),
           newFile: (tool, prompt) => {
+            // music and video are made in the media studio, not as shared files
+            if (tool === "music" || tool === "video") {
+              const p = new URLSearchParams({ media: tool });
+              if (prompt) p.set("q", prompt);
+              return location.assign(`${location.pathname}?${p}`);
+            }
             const t = TARGETS.find((x) => x.key === tool) ?? TARGETS[0];
             location.assign(roomUrl(newRoomId(), t.kind, prompt, t.template));
           },
@@ -51,7 +57,7 @@ export function Home() {
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4 sm:px-6">
         <Logo />
         <span className="text-[17px] font-bold">nodepad</span>
-        <span className="ml-2 hidden truncate text-sm text-dim sm:inline">Docs, sheets, slides and notes you co-edit with AI</span>
+        <span className="ml-2 hidden truncate text-sm text-dim sm:inline">Docs, slides, boards, 3D scenes and media you make with AI</span>
       </header>
       <div ref={stage} className="stage" />
     </div>

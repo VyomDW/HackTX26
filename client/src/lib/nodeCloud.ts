@@ -37,6 +37,9 @@ const ICON = {
   mindmap:
     "M10 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 10V6M12 14v4M10 12H6M14 12h4M10 4a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 20a2 2 0 1 0 4 0a2 2 0 1 0-4 0M2 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M18 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
   clock: "M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18zM12 7v5l3 2",
+  studio: "M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10",
+  music: "M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6a3 3 0 0 0 0 6zM18 19a3 3 0 1 0 0-6a3 3 0 0 0 0 6z",
+  video: "M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8zM4 11l-.88-2.87a2 2 0 0 1 1.33-2.5l11.48-3.5a2 2 0 0 1 2.5 1.33L19 6.3zM6.6 4.99l3.38 4.2M11.86 3.38l3.38 4.2",
 };
 const iconSvg = (k) =>
   `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${ICON[k]}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -57,10 +60,18 @@ const DEV_DEFS = [
   { id: "erd", name: "DB schema", noun: "database schema", color: "#0d9488", ask: "Schema for a course registration system" },
   { id: "mindmap", name: "Mind map", noun: "mind map", color: "#c026d3", ask: "Mind map of hackathon ideas about sustainability" },
 ];
+const MEDIA_DEFS = [
+  { id: "studio", name: "3D Studio", noun: "3D scene", color: "#9333ea", ask: "Build a cozy coffee shop with tables, a counter and plants" },
+  { id: "music", name: "Music", noun: "track", color: "#65a30d", ask: "Upbeat lo-fi hip hop with warm piano, for studying" },
+  { id: "video", name: "Video", noun: "clip", color: "#dc2626", ask: "A paper airplane gliding over a desk of pencil sketches" },
+];
 const DEFAULT_ASK = "Make a pitch about sustainable coffee";
 
 // Simple keyword rules that pick the tool for a typed request
 const RULES = [
+  ["music", /music|song|beat|melody|soundtrack|jingle|lo-?fi|instrumental/],
+  ["video", /video|clip|film|footage|movie|cinematic|drone shot/],
+  ["studio", /\b3d\b|3-d|scene|render|model of|environment|sculpt/],
   ["blueprint", /floor ?plan|blueprint|apartment|bedroom|room layout|booth layout/],
   ["erd", /schema|database|\bdb\b|tables?\b|erd/],
   ["flowchart", /flow ?chart|flow\b|process|pipeline|steps of/],
@@ -112,7 +123,13 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     // a separate little ring off to the back-right
     return { ...d, size: 0.74, big: false, files: [], pos: [3.9 + Math.cos(a) * 1.45, 1.6 + Math.sin(a) * 1.2, -2.4 + Math.cos(a) * 0.6] };
   });
-  const ALL = TOOLS.concat(DEV);
+  const MEDIA = MEDIA_DEFS.map((d, i) => {
+    const a = (i / MEDIA_DEFS.length) * Math.PI * 2 - 0.4;
+    // a matching little ring off to the back-left
+    return { ...d, size: 0.74, big: false, files: [], pos: [-4.1 + Math.cos(a) * 1.35, 1.4 + Math.sin(a) * 1.1, -2.4 - Math.cos(a) * 0.6] };
+  });
+  const SMALL = DEV.concat(MEDIA);
+  const ALL = TOOLS.concat(SMALL);
   const byId = Object.fromEntries(ALL.map((t) => [t.id, t]));
   let files = [...opts.files].sort((a, b) => b.updatedAt - a.updatedAt);
   files.forEach((f) => (byId[f.tool] || byId.doc).files.push(f));
@@ -226,12 +243,14 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     const b = TOOLS[(i + 1) % TOOLS.length];
     edges.push([a.group.position, b.group.position, a.size * 0.42, b.size * 0.42]);
   });
-  [DEV[1], DEV[4]].forEach((s) => edges.push([hub.position, s.group.position, 0.42, s.size * 0.42]));
+  [DEV[1], DEV[4], MEDIA[0]].forEach((s) => edges.push([hub.position, s.group.position, 0.42, s.size * 0.42]));
   edges.forEach((e) => seg(solid, ...e));
-  DEV.forEach((s, i) => {
-    const n = DEV[(i + 1) % DEV.length];
-    seg(dashed, s.group.position, n.group.position, s.size * 0.42, n.size * 0.42);
-  });
+  [DEV, MEDIA].forEach((ring) =>
+    ring.forEach((s, i) => {
+      const n = ring[(i + 1) % ring.length];
+      seg(dashed, s.group.position, n.group.position, s.size * 0.42, n.size * 0.42);
+    }),
+  );
   function lines(arr, mat, dash) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
@@ -282,7 +301,8 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
   }
   const CLASSIC = makeGroup("classic", "Classic", TOOLS, "classic", new THREE.Vector3(0, 2.75, 0.7));
   const DEVG = makeGroup("dev", "Dev & design boards", DEV, "dev & design boards", new THREE.Vector3(3.9, 3.25, -2.4));
-  const GROUPS = [CLASSIC, DEVG];
+  const MEDIAG = makeGroup("media", "3D & media", MEDIA, "3d & media", new THREE.Vector3(-4.1, 3.05, -2.4));
+  const GROUPS = [CLASSIC, DEVG, MEDIAG];
   let parentGroup = null;
 
   function preview(tool, f, i) {
@@ -294,22 +314,24 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
       for (let k = 0; k < 7; k++) h += `<s style="left:${14 + k * 11}%;height:${18 + ((k * 37 + i * 13) % 50)}%"></s>`;
       return `<div class="pv sheet">${h}</div>`;
     }
+    if (tool.id === "studio")
+      return '<div class="pv studio"><svg viewBox="0 0 100 56" aria-hidden="true"><path d="M50 10l18 9v18l-18 9-18-9V19z" fill="#f3e8ff" stroke="#1c1b18" stroke-width="1.4" stroke-linejoin="round"/><path d="M32 19l18 9 18-9M50 28v18" fill="none" stroke="#1c1b18" stroke-width="1.4" stroke-linejoin="round"/><ellipse cx="76" cy="40" rx="7" ry="3" fill="#1c1b18" opacity=".15"/><circle cx="76" cy="33" r="7" fill="#9333ea" stroke="#1c1b18" stroke-width="1.4"/></svg></div>';
     if (tool.id === "notes") return `<div class="pv notes"><b>${t}</b><i style="width:70%"></i><i style="width:86%"></i><i style="width:48%"></i></div>`;
     return '<div class="pv board"><svg viewBox="0 0 100 56" aria-hidden="true"><rect x="8" y="8" width="26" height="14" rx="2" fill="#fffefb" stroke="#1c1b18" stroke-width="1.2"/><rect x="62" y="10" width="28" height="14" rx="2" fill="#fef9c3" stroke="#1c1b18" stroke-width="1.2"/><rect x="34" y="34" width="30" height="14" rx="2" fill="#fffefb" stroke="#1c1b18" stroke-width="1.2"/><path d="M34 15H62M21 22L42 34M76 24L58 34" stroke="#1c1b18" stroke-width="1" fill="none"/></svg></div>';
   }
 
-  const HOME = new THREE.Vector3(1.5, 0.5, -0.7);
-  const cam = { yaw: 0.1, pitch: 0.2, dist: 11, target: HOME.clone() };
-  const goal = { yaw: 0.1, pitch: 0.2, dist: 11, target: HOME.clone() };
+  const HOME = new THREE.Vector3(0, 0.5, -0.9);
+  const cam = { yaw: 0, pitch: 0.2, dist: 11, target: HOME.clone() };
+  const goal = { yaw: 0, pitch: 0.2, dist: 11, target: HOME.clone() };
   let focused = null, hovered = null, cards = [], cardsShownAt = 0, routed = null, launch = null, layout = null;
   const shift = { x: 0, y: 0 };
   let W = 0, H = 0;
   const DOCK_H = 70, GAP = 14;
   const narrow = () => stage.clientWidth < 760;
-  const overviewDist = () => (narrow() ? 22 : 13);
+  const overviewDist = () => (narrow() ? 24 : 14);
   const focusDist = (s) => {
     if (s === ROOT) return narrow() ? 5.4 : 4.6;
-    if (s.isGroup) return s === DEVG ? (narrow() ? 10 : 6.8) : narrow() ? 13 : 9;
+    if (s.isGroup) return s === DEVG ? (narrow() ? 10 : 6.8) : s === MEDIAG ? (narrow() ? 10 : 7.4) : narrow() ? 13 : 9;
     return (narrow() ? 6.2 : 5.2) * (s.big ? 1 : 0.7);
   };
   function center() {
@@ -334,7 +356,7 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     focused = s;
     stage.classList.add("focused");
     stage.classList.toggle("grouped", !!s.isGroup);
-    stage.classList.toggle("grp-dev", s === DEVG);
+    stage.classList.toggle("grp-dev", s === DEVG || s === MEDIAG);
     if (s === ROOT) parentGroup = null;
     else if (!s.isGroup) parentGroup = from && from.isGroup && from.members.includes(s) ? from : null;
     fhead.style.setProperty("--c", s.color);
@@ -343,10 +365,11 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     goal.target.copy(wp);
     goal.dist = focusDist(s);
     goal.pitch = 0.12;
-    // classic tools are viewed from outside the center; the dev ring faces the front
+    // classic tools are viewed from outside the center; the small rings face the front, turned a little toward the middle
     const flat = Math.hypot(wp.x, wp.z);
-    goal.yaw = wrapYaw(s === ROOT ? 0.1 : s.isGroup ? (s === DEVG ? 0.45 : 0.05) : !s.big ? 0.45 : flat > 0.3 ? Math.atan2(wp.x, wp.z) : cam.yaw);
-    $(".f-ic").innerHTML = iconSvg(s.isGroup ? "whiteboard" : s.id);
+    const side = MEDIA.includes(s) || s === MEDIAG ? -0.45 : 0.45;
+    goal.yaw = wrapYaw(s === ROOT ? 0.1 : s.isGroup ? (s === CLASSIC ? 0.05 : side) : !s.big ? side : flat > 0.3 ? Math.atan2(wp.x, wp.z) : cam.yaw);
+    $(".f-ic").innerHTML = iconSvg(s.isGroup ? (s === MEDIAG ? "studio" : "whiteboard") : s.id);
     $(".f-title").textContent = s.name;
     if (s.isGroup) {
       $(".f-sub").textContent = `${s.members.length} tools · pick one to see its recent files`;
@@ -355,7 +378,7 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     }
     const list = s === ROOT ? files.slice(0, 5) : s.files.slice(0, 5);
     const live = list.filter((f) => f.online > 0).length;
-    $(".f-sub").textContent = list.length ? `${list.length} recent file${list.length > 1 ? "s" : ""}${live ? ` · ${live} open now` : ""}` : "Nothing here yet";
+    $(".f-sub").textContent = MEDIA_DEFS.some((m) => m.id === s.id && m.id !== "studio") ? `Your ${s.noun}s live in the media studio` : list.length ? `${list.length} recent file${list.length > 1 ? "s" : ""}${live ? ` · ${live} open now` : ""}` : "Nothing here yet";
     $(".f-new").textContent = s === ROOT ? "New file" : `New ${s.noun}`;
     aski.placeholder = s.ask;
     ALL.forEach((o) => { o.label.classList.toggle("dim", o !== s); o.label.classList.toggle("me", o === s); });
@@ -522,7 +545,7 @@ export function mountNodeCloud(stage: HTMLElement, opts: CloudOptions): () => vo
     goal.target.copy(HOME);
     goal.dist = overviewDist();
     goal.pitch = 0.2;
-    goal.yaw = wrapYaw(0.1);
+    goal.yaw = wrapYaw(0);
     aski.placeholder = DEFAULT_ASK;
     ALL.forEach((o) => o.label.classList.remove("dim", "me"));
   }
