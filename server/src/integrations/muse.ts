@@ -25,41 +25,56 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
     yield* mockStream(messages, signal);
     return;
   }
+
+  const models = [...new Set([env.museModel, env.museFallbackModel].filter(Boolean))];
   let stream: AsyncIterable<{ choices: { delta?: { content?: string | null } }[] }> | undefined;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      stream = await client.chat.completions.create(
-        {
-          model: env.museModel,
-          messages,
-          stream: true,
-          // Reasoning delays the first token; minimal keeps the live build feeling instant.
-          reasoning_effort: "minimal",
-        },
-        { signal },
-      );
-      break;
-    } catch (err) {
-      const transientModelMiss = err instanceof APIError && err.status === 404 && err.code === "model_not_found";
-      if (!transientModelMiss || attempt === 2 || signal?.aborted) throw err;
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, 500 * 2 ** attempt);
-        signal?.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timer);
-            reject(signal.reason);
+  let lastModelError: unknown;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        stream = await client.chat.completions.create(
+          {
+            model,
+            messages,
+            stream: true,
+            // Reasoning delays the first token; minimal keeps the live build feeling instant.
+            reasoning_effort: "minimal",
           },
-          { once: true },
+          { signal },
         );
-      });
+        break;
+      } catch (err) {
+        const modelUnavailable = err instanceof APIError && err.status === 404 && err.code === "model_not_found";
+        if (!modelUnavailable || signal?.aborted) throw err;
+        lastModelError = err;
+        if (attempt === 0) {
+          await waitForRetry(350, signal);
+        }
+      }
     }
+    if (stream) break;
   }
-  if (!stream) return;
+
+  if (!stream) throw lastModelError ?? new Error("No Muse model is available");
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;
     if (text) yield text;
   }
+}
+
+async function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, delayMs);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
 }
 
 /** Streams a recorded response line by line, paced like the real model. */
@@ -76,7 +91,7 @@ async function* replayFixture(path: string, signal?: AbortSignal): AsyncGenerato
 async function* mockStream(messages: ChatMessage[], signal?: AbortSignal): AsyncGenerator<string> {
   const id = `s${Date.now().toString(36).slice(-4)}`;
   const last = messages.at(-1)?.content ?? "";
-  const title = /Request:\s*([\s\S]*)$/.exec(last)?.[1]?.trim() || "Untitled";
+  const title = /Request:\\s*([\\s\\S]*)$/.exec(last)?.[1]?.trim() || "Untitled";
   const lines = [
     { type: "add_slide", id, layout: "bullets" },
     { type: "set_text", slideId: id, elementId: `${id}-title`, text: title.slice(0, 60) },
