@@ -13,7 +13,7 @@ export const SceneObject = z.object({ ...Transform, ...Sculpt, id: z.string(), n
 export type SceneObject = z.infer<typeof SceneObject>;
 export const Studio = z.object({ kind: z.literal("studio"), id: z.string(), title: z.string(), objects: z.array(SceneObject), environment: SceneEnvironment.optional() });
 export type Studio = z.infer<typeof Studio>;
-export const DEFAULT_ENVIRONMENT: SceneEnvironment = { preset: "studio", sky: "#111323", ground: "#222638", grid: true };
+export const DEFAULT_ENVIRONMENT: SceneEnvironment = { preset: "studio", sky: "#f6f5ef", ground: "#e9e7de", grid: true };
 export const emptyStudio = (id: string): Studio => ({ kind: "studio", id, title: "Untitled 3D scene", objects: [], environment: DEFAULT_ENVIRONMENT });
 
 export const AddPrimitive = z.object({ type: z.literal("add_primitive"), ...TransformPatch, ...SculptPatch, id: z.string(), name: z.string(), primitive: Primitive, x: z.number().optional(), y: z.number().optional(), z: z.number().optional(), size: z.number().min(0.2).max(5).optional(), color: z.string().optional(), assetUrl: z.string().max(12_000_000).optional() });

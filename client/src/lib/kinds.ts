@@ -1,4 +1,4 @@
-import { BrainCircuit, Database, DraftingCompass, FileText, LayoutDashboard, Network, NotebookPen, Presentation, Table2, Workflow, type LucideIcon } from "lucide-react";
+import { Box, BrainCircuit, Database, DraftingCompass, FileText, LayoutDashboard, Network, NotebookPen, Presentation, Table2, Workflow, type LucideIcon } from "lucide-react";
 import type { BoardTemplate, DocKind } from "@hacktx/shared";
 
 /** How each kind of file presents itself in the UI. */
@@ -6,7 +6,7 @@ export const KINDS: Record<
   DocKind,
   { label: string; noun: string; icon: LucideIcon; color: string; tint: string; placeholder: string; suggestions: string[] }
 > = {
-  studio: { label: "3D Studio", noun: "3D scene", icon: DraftingCompass, color: "bg-indigo-600", tint: "text-indigo-600 bg-indigo-50", placeholder: "Describe a 3D space, or ask Muse to change an object…", suggestions: ["Build a cozy coffee shop with tables, a counter and plants", "Create a forest campsite with a cabin and campfire", "Design a small city park with paths and benches"] },
+  studio: { label: "3D Studio", noun: "3D scene", icon: Box, color: "bg-purple-600", tint: "text-purple-600 bg-purple-50", placeholder: "Describe a 3D space, or ask nodepad to change an object…", suggestions: ["Build a cozy coffee shop with tables, a counter and plants", "Create a forest campsite with a cabin and campfire", "Design a small city park with paths and benches"] },
   slides: {
     label: "Presentation",
     noun: "slides",

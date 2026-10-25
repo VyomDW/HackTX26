@@ -97,7 +97,8 @@
 .nh .pv.notes b{font-family:var(--hand);font-size:14px;line-height:1}
 .nh .pv.notes i{display:block;height:3px;border-radius:2px;background:rgb(28 27 24 / .18)}
 .nh .pv.board{background:#f6f5ef;background-image:linear-gradient(#e9e7de 1px,transparent 1px),linear-gradient(90deg,#e9e7de 1px,transparent 1px);background-size:12px 12px}
-.nh .pv.board svg{position:absolute;inset:0;width:100%;height:100%}
+.nh .pv.studio{background:#faf5ff;background-image:linear-gradient(#ede4f7 1px,transparent 1px),linear-gradient(90deg,#ede4f7 1px,transparent 1px);background-size:12px 12px}
+.nh .pv.studio svg,.nh .pv.board svg{position:absolute;inset:0;width:100%;height:100%}
 .nh .dock{position:absolute;z-index:2000;left:50%;bottom:16px;transform:translateX(-50%);width:min(560px,calc(100% - 32px));display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:14px;background:var(--panel);pointer-events:auto;cursor:text}
 .nh .dock input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:14px;color:var(--ink)}
 .nh .dock input::placeholder{color:var(--dim)}

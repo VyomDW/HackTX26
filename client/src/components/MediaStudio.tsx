@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Clapperboard, Download, Loader2, Music, TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Logo } from "./Logo";
 
 type Tab = "music" | "video";
 
@@ -42,7 +43,7 @@ const secs = (from: number, to = Date.now()) => `${Math.max(0, Math.round((to - 
 const fileUrl = (job: MediaJob, name: string, download = false) => `/api/media/${job.id}/${name}${download ? "?download=1" : ""}`;
 
 /** Media studio: describe a song or a clip, Replicate makes it, and it comes back as downloadable files. */
-export function MediaStudio({ initialTab }: { initialTab: Tab }) {
+export function MediaStudio({ initialTab, initialPrompt }: { initialTab: Tab; initialPrompt?: string }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [jobs, setJobs] = useState<MediaJob[]>([]);
   const [enabled, setEnabled] = useState(true);
@@ -64,9 +65,20 @@ export function MediaStudio({ initialTab }: { initialTab: Tab }) {
   }, []);
 
   useEffect(() => {
-    document.title = "Media studio · Muse Office";
+    document.title = "Media studio · nodepad";
     void load();
   }, [load]);
+
+  // A request typed on the home screen starts generating right away, then is dropped from the URL.
+  const sentInitial = useRef(false);
+  useEffect(() => {
+    if (!initialPrompt || sentInitial.current) return;
+    sentInitial.current = true;
+    history.replaceState(null, "", `?media=${tab}`);
+    setPrompt(initialPrompt);
+    void generate(initialPrompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Poll while anything is still cooking, and tick the elapsed-time counters.
   const pending = jobs.some((j) => j.status !== "done" && j.status !== "failed");
@@ -119,8 +131,8 @@ export function MediaStudio({ initialTab }: { initialTab: Tab }) {
     <div className="ink min-h-dvh bg-page font-ui text-ink">
       <header className="flex h-14 items-center gap-3 px-4 sm:px-8">
         <a href={location.pathname} title="All files" className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-[17px] font-bold hover:bg-slate-100">
-          <span className="grid size-7 place-items-center rounded-lg bg-[var(--ink)] text-[15px] text-[var(--page)] shadow-[2px_2px_0_var(--orb)]">M</span>
-          Muse
+          <Logo />
+          nodepad
         </a>
         <span className="border-l border-line pl-3 font-semibold">Media studio</span>
       </header>
@@ -255,7 +267,7 @@ export function MediaStudio({ initialTab }: { initialTab: Tab }) {
                   </div>
                 )}
                 {job.status !== "done" && job.status !== "failed" && (
-                  <p className="hand mt-2 text-[20px] text-orb">{job.kind === "music" ? "Muse is composing…" : "Muse is filming…"}</p>
+                  <p className="hand mt-2 text-[20px] text-orb">{job.kind === "music" ? "nodepad is composing…" : "nodepad is filming…"}</p>
                 )}
                 {job.status === "failed" && (
                   <p className="mt-2 text-sm text-red-700">
