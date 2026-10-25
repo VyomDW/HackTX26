@@ -43,7 +43,7 @@ export async function transcribe(audio: Buffer, mimeType: string): Promise<strin
  * Muse's speaker labels restart with every clip, so they are not returned.
  */
 export async function transcribeTurns(audio: Buffer, mimeType: string, diarize: boolean): Promise<string[]> {
-  if (!env.museVoiceApiKey) return ["Hey Muse, add a slide about coffee prices"];
+  if (!env.museVoiceApiKey) return ["Hey Nodepad, add a slide about coffee prices"];
   const { transcript, turns } = await request(audio, mimeType, diarize ? "DIARIZATION" : "PUSH_TO_TALK");
   const lines = diarize && turns?.length ? turns.map((t) => t.transcript) : [transcript ?? ""];
   return lines.map((l) => l.trim()).filter(Boolean);

@@ -13,7 +13,7 @@ type Item = { kind: "turn"; ts: number; turn: Turn } | { kind: "op"; ts: number;
 
 export function AiAvatar({ className }: { className?: string }) {
   return (
-    <span aria-label="Muse" className={cn("inline-grid size-7 shrink-0 place-items-center rounded-full bg-orb text-white", className)}>
+    <span aria-label="Nodepad" className={cn("inline-grid size-7 shrink-0 place-items-center rounded-full bg-orb text-white", className)}>
       <PenLine className="size-[55%]" strokeWidth={2.4} />
     </span>
   );
@@ -219,7 +219,7 @@ export function Activity({
                 {ai ? <AiAvatar className="size-[22px]" /> : <Avatar userId={env.actor} name={names.get(env.actor)} className="size-[22px] text-[9px] ring-0" />}
                 <div className="min-w-0">
                   <p className={cn("break-words", isUndone && "text-dim line-through")}>
-                    <b>{ai ? "Muse" : nameOf(env.actor)}</b> {describe(env, deck)}
+                    <b>{ai ? "Nodepad" : nameOf(env.actor)}</b> {describe(env, deck)}
                     {live && ai && (
                       <span className="ml-1 inline-flex gap-0.5 align-middle">
                         {[0, 0.2, 0.4].map((d) => (
@@ -254,7 +254,7 @@ export function Activity({
           </button>
           {streamOpen && (
             <pre className="flex h-36 flex-col justify-end overflow-hidden whitespace-pre-wrap break-all px-4 pb-3 font-mono text-[10.5px] leading-relaxed text-slate-500">
-              {stream.length === 0 && <span>Waiting for Muse…</span>}
+              {stream.length === 0 && <span>Waiting for Nodepad…</span>}
               {stream.map((h, i) => (
                 <span key={h.opId} className={cn("block", i === stream.length - 1 && "text-ink")}>
                   {clip(JSON.stringify(h.op), 120)}

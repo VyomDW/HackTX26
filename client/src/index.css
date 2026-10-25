@@ -236,7 +236,7 @@
   transform: translate(2px, 2px);
   box-shadow: 1px 1px 0 var(--ink);
 }
-/* Muse signs its work by hand. */
+/* Nodepad signs its work by hand. */
 .hand {
   font-family: "Caveat", cursive;
 }

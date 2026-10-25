@@ -12,7 +12,7 @@ export const KINDS: Record<
     icon: Presentation,
     color: "bg-amber-500",
     tint: "text-amber-600 bg-amber-50",
-    placeholder: "Ask Muse to build or change slides…",
+    placeholder: "Ask Nodepad to build or change slides…",
     suggestions: ["Make a pitch about sustainable coffee", "Explain how solar panels work in 4 slides", "Plan a team offsite agenda"],
   },
   doc: {
@@ -21,7 +21,7 @@ export const KINDS: Record<
     icon: FileText,
     color: "bg-blue-600",
     tint: "text-blue-600 bg-blue-50",
-    placeholder: "Ask Muse to write or edit the document…",
+    placeholder: "Ask Nodepad to write or edit the document…",
     suggestions: ["Write a one-page project proposal for a campus app", "Draft a cover letter for a software internship", "Write meeting minutes with action items"],
   },
   sheet: {
@@ -30,7 +30,7 @@ export const KINDS: Record<
     icon: Table2,
     color: "bg-emerald-600",
     tint: "text-emerald-600 bg-emerald-50",
-    placeholder: "Ask Muse to build, calculate or chart…",
+    placeholder: "Ask Nodepad to build, calculate or chart…",
     suggestions: ["Build a monthly student budget with a pie chart", "Track a 6-week workout plan with totals", "Compare 4 laptops on price and specs"],
   },
   notes: {
@@ -39,7 +39,7 @@ export const KINDS: Record<
     icon: NotebookPen,
     color: "bg-yellow-500",
     tint: "text-yellow-700 bg-yellow-50",
-    placeholder: "Ask Muse to take, organize or summarize notes…",
+    placeholder: "Ask Nodepad to take, organize or summarize notes…",
     suggestions: ["Plan my hackathon weekend with a packing checklist", "Turn these thoughts into organized notes", "Make study notes on the French Revolution"],
   },
   board: {
@@ -48,7 +48,7 @@ export const KINDS: Record<
     icon: LayoutDashboard,
     color: "bg-pink-600",
     tint: "text-pink-600 bg-pink-50",
-    placeholder: "Ask Muse to draw, connect or rearrange…",
+    placeholder: "Ask Nodepad to draw, connect or rearrange…",
     suggestions: ["Brainstorm features for a campus app", "Map out a weekly team retro", "Sketch user personas for a fitness app"],
   },
 };
@@ -64,7 +64,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplate, Meta> = {
     icon: Workflow,
     color: "bg-sky-600",
     tint: "text-sky-600 bg-sky-50",
-    placeholder: "Ask Muse to chart a process…",
+    placeholder: "Ask Nodepad to chart a process…",
     suggestions: ["Flowchart of a user login flow with 2FA", "Order checkout process with payment failures", "CI/CD pipeline from commit to deploy"],
   },
   architecture: {
@@ -73,7 +73,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplate, Meta> = {
     icon: Network,
     color: "bg-indigo-600",
     tint: "text-indigo-600 bg-indigo-50",
-    placeholder: "Ask Muse to design a system…",
+    placeholder: "Ask Nodepad to design a system…",
     suggestions: ["Architecture for a food delivery app", "Real-time chat system that scales to 1M users", "Serverless image processing pipeline"],
   },
   erd: {
@@ -82,7 +82,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplate, Meta> = {
     icon: Database,
     color: "bg-teal-600",
     tint: "text-teal-600 bg-teal-50",
-    placeholder: "Ask Muse to model your data…",
+    placeholder: "Ask Nodepad to model your data…",
     suggestions: ["Schema for a course registration system", "E-commerce store with orders and reviews", "Multi-tenant SaaS with teams and roles"],
   },
   mindmap: {
@@ -91,7 +91,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplate, Meta> = {
     icon: BrainCircuit,
     color: "bg-fuchsia-600",
     tint: "text-fuchsia-600 bg-fuchsia-50",
-    placeholder: "Ask Muse to map out ideas…",
+    placeholder: "Ask Nodepad to map out ideas…",
     suggestions: ["Mind map of hackathon ideas about sustainability", "Study map for an intro to machine learning", "Plan a product launch"],
   },
   blueprint: {
@@ -100,7 +100,7 @@ export const BOARD_TEMPLATES: Record<BoardTemplate, Meta> = {
     icon: DraftingCompass,
     color: "bg-blue-700",
     tint: "text-blue-700 bg-blue-50",
-    placeholder: "Ask Muse to draw or change the floor plan…",
+    placeholder: "Ask Nodepad to draw or change the floor plan…",
     suggestions: ["Floor plan for a 2-bedroom, 1-bath apartment", "Small coffee shop with seating for 24", "Studio apartment with an open kitchen"],
   },
 };

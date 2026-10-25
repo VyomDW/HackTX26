@@ -91,7 +91,7 @@ export function scribblePath(n: BoardNode, downward: boolean): string {
   return `M ${pts.join(" L ")}`;
 }
 
-/** Muse's pen, gliding along the path it is drawing. Lives in canvas units; `zoom` keeps it a constant on-screen size. */
+/** Nodepad's pen, gliding along the path it is drawing. Lives in canvas units; `zoom` keeps it a constant on-screen size. */
 export function Pen({ path, ms, zoom }: { path: string; ms: number; zoom: number }) {
   const size = 30 / zoom;
   return (

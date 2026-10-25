@@ -113,7 +113,7 @@ export function NotesEditor({ book }: { book: Notebook }) {
           </div>
         )}
         <div className="flex-1 space-y-1 overflow-y-auto p-2">
-          {book.notes.length === 0 && <p className="p-3 text-sm text-slate-400">No notes yet. Create one, or ask Muse to take notes for you.</p>}
+          {book.notes.length === 0 && <p className="p-3 text-sm text-slate-400">No notes yet. Create one, or ask Nodepad to take notes for you.</p>}
           {pinned.length > 0 && <div className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pinned</div>}
           {pinned.map(item)}
           {pinned.length > 0 && others.length > 0 && <div className="px-2 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Notes</div>}

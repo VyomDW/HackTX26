@@ -6,7 +6,7 @@ import { useVoice } from "@/store/voice";
 
 /**
  * Turns on Listen mode: an open mic, or the mic plus the meeting's audio from a screen share,
- * so Muse hears everyone on a Zoom, Meet or Teams call and acts only on real requests.
+ * so Nodepad hears everyone on a Zoom, Meet or Teams call and acts only on real requests.
  */
 export function ListenButton({ className }: { className?: string }) {
   const listen = useVoice((s) => s.listen);
@@ -46,12 +46,12 @@ export function ListenButton({ className }: { className?: string }) {
       </button>
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-xl border-[1.5px] border-[var(--ink)] bg-panel p-1 text-left shadow-[4px_4px_0_var(--ink)]">
-          <MenuItem icon={<Mic className="size-4" />} title="Listen with my mic" detail="Everyone in the room can talk; Muse acts only on requests." onClick={() => pick(false)} />
+          <MenuItem icon={<Mic className="size-4" />} title="Listen with my mic" detail="Everyone in the room can talk; Nodepad acts only on requests." onClick={() => pick(false)} />
           {callAudioSupported && (
             <MenuItem
               icon={<ScreenShare className="size-4" />}
               title="Hear the whole call"
-              detail="Share your Zoom, Meet or Teams window or tab with audio on, so Muse hears everyone."
+              detail="Share your Zoom, Meet or Teams window or tab with audio on, so Nodepad hears everyone."
               onClick={() => pick(true)}
             />
           )}

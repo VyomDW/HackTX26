@@ -12,20 +12,20 @@ const KEEP_MS = 3 * 60_000;
 /** Speakers on a call are often picked up by several open mics; the copy heard first wins. */
 const ECHO_MS = 5000;
 
-const WAKE = /^\s*(?:hey|ok(?:ay)?|hi)?[\s,]*(?:muse|news|mews|muze)\b[\s,.:!-]*/i;
+const WAKE = /^\s*(?:hey|ok(?:ay)?|hi)?[\s,]*(?:node ?pad|notepad|muse|news|mews|muze)\b[\s,.:!-]*/i;
 
-const FILTER_PROMPT = `You listen in on people talking while they edit a shared document together with an AI editor called Muse.
-Decide whether the NEW lines contain a request Muse should carry out on the document now.
+const FILTER_PROMPT = `You listen in on people talking while they edit a shared document together with an AI editor called Nodepad.
+Decide whether the NEW lines contain a request Nodepad should carry out on the document now.
 
 Act on: instructions or clear agreements to change the document ("make slide two shorter", "let's add a chart of prices",
-"yeah, do what Sam said", "can we make the title bigger"), even if not addressed to Muse.
+"yeah, do what Sam said", "can we make the title bigger"), even if not addressed to Nodepad.
 Ignore: small talk, thinking out loud without a decision, questions to each other, opinions with no change agreed,
 anything about lunch, schedules or the call itself, and requests already handled (lines marked [done]).
 
 Reply with one JSON object and nothing else:
 {"act": false}
 or
-{"act": true, "request": "<one self-contained instruction for Muse, resolving words like 'that' or 'what Sam said' from context>", "lines": [<numbers of the NEW lines the request came from>]}
+{"act": true, "request": "<one self-contained instruction for Nodepad, resolving words like 'that' or 'what Sam said' from context>", "lines": [<numbers of the NEW lines the request came from>]}
 If the NEW lines hold several separate requests, combine them into one numbered instruction.`;
 
 interface Heard extends Caption {

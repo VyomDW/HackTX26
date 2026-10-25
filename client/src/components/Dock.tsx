@@ -42,14 +42,14 @@ export function Dock({
     if (talking) return ["Transcribing", "One moment…"];
     if (listenError) return ["Listen problem", listenError];
     if (listen !== "off") {
-      const what = caption?.acted ? "Muse is on it" : listen === "call" ? "Hearing the call" : "Listening to the room";
-      return [what, caption ? `${caption.speaker}: “${caption.text}”` : "Talk normally; Muse acts when you ask for a change"];
+      const what = caption?.acted ? "Nodepad is on it" : listen === "call" ? "Hearing the call" : "Listening to the room";
+      return [what, caption ? `${caption.speaker}: “${caption.text}”` : "Talk normally; Nodepad acts when you ask for a change"];
     }
     // Someone else's open mic: show what it heard, so nobody is listened to without seeing it.
-    if (caption && Date.now() - caption.ts < 15_000) return [caption.acted ? "Muse is on it" : "Heard in the room", `${caption.speaker}: “${caption.text}”`];
+    if (caption && Date.now() - caption.ts < 15_000) return [caption.acted ? "Nodepad is on it" : "Heard in the room", `${caption.speaker}: “${caption.text}”`];
     if (error) return ["Mic problem", error];
     if (transcript) return ["Heard", `“${transcript}”`];
-    return [supported ? "Hold Space to talk" : "Type a request", busy ? "Talk or type to interrupt Muse" : "Ask Muse to build or change this"];
+    return [supported ? "Hold Space to talk" : "Type a request", busy ? "Talk or type to interrupt Nodepad" : "Ask Nodepad to build or change this"];
   })();
   const live = voice === "recording" || listen !== "off";
   const failed = listenError ?? error;
@@ -81,7 +81,7 @@ export function Dock({
           className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-dim"
         />
         {busy && !disabled && (
-          <button type="button" onClick={onStop} title="Stop Muse" className="grid size-9 shrink-0 place-items-center rounded-full border border-line text-ink hover:border-live hover:text-live">
+          <button type="button" onClick={onStop} title="Stop Nodepad" className="grid size-9 shrink-0 place-items-center rounded-full border border-line text-ink hover:border-live hover:text-live">
             <Square className="size-3.5 fill-current" />
           </button>
         )}
