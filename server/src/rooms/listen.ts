@@ -4,7 +4,7 @@ import { callMuse } from "../integrations/muse";
 import type { Room } from "./room";
 
 /** Lines heard within this window are judged together, so a request split across a pause stays whole. */
-const SETTLE_MS = 1200;
+const SETTLE_MS = 800;
 /** Nonstop talk never leaves a pause, so lines are judged at least this often anyway. */
 const MAX_WAIT_MS = 4000;
 /** How much conversation the filter sees. */
