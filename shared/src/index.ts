@@ -1,4 +1,5 @@
 export * from "./deck";
+export * from "./themes";
 export * from "./textdoc";
 export * from "./sheet";
 export * from "./notes";

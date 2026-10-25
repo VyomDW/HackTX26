@@ -8,6 +8,7 @@ import { removeSaved } from "./rooms/store";
 import { transcribe, transcribeTurns } from "./integrations/voice";
 import { listenerFor } from "./rooms/listen";
 import { IMAGE_DIR } from "./integrations/image";
+import { listMedia, mediaEnabled, mediaFile, removeMedia, startMedia, type MediaKind, type MediaOptions } from "./integrations/media";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
 
@@ -27,6 +28,37 @@ app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
   if (!existsSync(full)) return reply.code(404).send();
   reply.header("cache-control", "public, max-age=31536000, immutable");
   return reply.type(file.endsWith(".png") ? "image/png" : file.endsWith(".jpg") ? "image/jpeg" : "image/webp").send(createReadStream(full));
+});
+
+/** Media studio: every music and video generation, newest first, and whether a Replicate key is set. */
+app.get("/media", async () => ({ enabled: mediaEnabled(), jobs: await listMedia() }));
+
+app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRatio?: string } }>("/media", async (req, reply) => {
+  const { kind, prompt, duration, aspectRatio } = req.body ?? {};
+  if (!mediaEnabled()) return reply.code(503).send({ error: "Add REPLICATE_API_TOKEN to server/.env to generate media." });
+  if (kind !== "music" && kind !== "video") return reply.code(400).send({ error: "kind must be music or video" });
+  const text = prompt?.trim();
+  if (!text || text.length > 1000) return reply.code(400).send({ error: "Describe what to make (up to 1000 characters)." });
+  const options: MediaOptions = {
+    duration: duration === 10 ? 10 : 5,
+    aspectRatio: aspectRatio === "9:16" || aspectRatio === "1:1" ? aspectRatio : "16:9",
+  };
+  return startMedia(kind as MediaKind, text, options);
+});
+
+app.delete<{ Params: { id: string } }>("/media/:id", async (req, reply) =>
+  (await removeMedia(req.params.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." }),
+);
+
+const MEDIA_TYPES: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg" };
+
+/** One generated file; ?download=1 saves it instead of playing it. Only names the job itself lists are served. */
+app.get<{ Params: { id: string; name: string }; Querystring: { download?: string } }>("/media/:id/:name", async (req, reply) => {
+  const full = await mediaFile(req.params.id, req.params.name);
+  if (!full || !existsSync(full)) return reply.code(404).send();
+  const ext = path.extname(full).slice(1);
+  if (req.query.download) reply.header("content-disposition", `attachment; filename="muse-${req.params.name}"`);
+  return reply.type(MEDIA_TYPES[ext] ?? "application/octet-stream").send(createReadStream(full));
 });
 
 /** The workspace file list for the home screen, most recently edited first. */

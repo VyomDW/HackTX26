@@ -1,4 +1,4 @@
-import { evaluateSheet, FORMULA_FUNCTIONS, formatValue, type DocKind, type Document } from "@hacktx/shared";
+import { evaluateSheet, FORMULA_FUNCTIONS, formatValue, THEMES, type DocKind, type Document } from "@hacktx/shared";
 
 /** Standing instructions sent to Muse Spark as a developer message on every turn, one per kind of file. */
 
@@ -14,15 +14,18 @@ and a style. Font sizes, stroke widths and corner radii use the same units. Late
 
 OPERATIONS
 Structure:
-{"type":"add_slide","id":"s3","layout":"bullets","afterId":"s2"}   layout: title | bullets | image-left | image-full | quote | blank. afterId optional (default: append).
+{"type":"add_slide","id":"s3","layout":"bullets","afterId":"s2"}   layout: title | bullets | image-left | image-full | quote | section | stats | columns | timeline | blank. afterId optional (default: append).
 {"type":"duplicate_slide","slideId":"s3","newId":"s4"}
 {"type":"delete_slide","slideId":"s3"}
 {"type":"reorder_slide","slideId":"s3","toIndex":0}
 {"type":"set_slide","slideId":"s3","background":"#0f172a","notes":"speaker notes"}   either field optional; null clears it.
 {"type":"set_title","title":"Deck name"}   renames the file; set it when building a new deck.
+{"type":"set_theme","theme":"midnight"}   sets the deck theme (fonts, colours, background, decorations) and restyles existing slides to match.
 Content:
 {"type":"set_text","slideId":"s3","elementId":"s3-title","text":"..."}   creates a text box if missing, otherwise replaces its text (also works on shapes). Optional "box" and "style" when creating.
-{"type":"add_image","slideId":"s3","elementId":"s3-img","prompt":"short visual description"}   optional "box", "style".
+{"type":"add_image","slideId":"s3","elementId":"s3-img","prompt":"undersea fiber optic cable","source":"photo"}   optional "box", "style".
+   source "photo": a real photo found on the web, so prompt is a short search query (2 to 6 words) naming a concrete, photographable subject.
+   source "illustration": an AI-drawn picture, for ideas no photo shows (concepts, metaphors, diagrams); prompt is a vivid visual description.
 {"type":"add_shape","slideId":"s3","elementId":"s3-badge","shape":"rounded","text":"New"}   shape: rect | rounded | ellipse | triangle | diamond | star | line | arrow. Optional "box", "style", "text".
 {"type":"delete_element","slideId":"s3","elementId":"s3-body"}
 {"type":"add_citation","slideId":"s3","source":"Exact result title","url":"https://example.com/source"}   cite factual claims with an exact title and URL from SEARCH SOURCES.
@@ -35,7 +38,7 @@ View:
 {"type":"focus","slideId":"s3","elementId":"s3-title"}   moves the user's view; elementId optional.
 
 STYLE PROPERTIES
-Text: fontFamily (Inter | Poppins | Montserrat | Playfair Display | Lora | Merriweather | Oswald | Roboto Mono), fontSize, color, bold, italic, underline, strike,
+Text: fontFamily (Inter | Poppins | Montserrat | Space Grotesk | Playfair Display | Lora | Merriweather | Oswald | Roboto Mono | JetBrains Mono | Caveat), fontSize, color, bold, italic, underline, strike,
       align (left | center | right), valign (top | middle | bottom), lineHeight.
 Box: fill (background color), stroke (border color), strokeWidth, radius, opacity (0 to 1). Images: fit (cover | contain).
 Colors are hex strings like "#1e293b". Inside text, **double asterisks** make words bold and *single asterisks* make them italic.
@@ -47,14 +50,30 @@ bullets layout:     -title, -body
 image-left layout:  -title, -body, -img
 image-full layout:  -title, -img
 quote layout:       -quote, -attribution
+section layout:     -kicker (short label like "Part 2"), -title (one bold statement), -subtitle
+stats layout:       -title, -stat1 -label1, -stat2 -label2, -stat3 -label3   (stat = a short number of at most 6 characters like "73%", "$4.2B", "10x", with any unit word in the label; label = what it means, under 12 words)
+columns layout:     -title, -leftHead -left, -rightHead -right   (compare two things: before/after, problem/solution, pros/cons; left and right are bullet lists)
+timeline layout:    -title, -step1 -detail1 ... -step4 -detail4   (step = a date or phase name, under 14 characters; detail = one or two short sentences; the accent line is added for you)
 Any other role (e.g. -badge, -chart, -note) is free-form: give it a box so it lands where you want.
+
+THEMES
+${Object.values(THEMES)
+  .map((t) => `${t.id}: ${t.vibe}`)
+  .join("\n")}
+Layout defaults already use the theme's fonts and colours, and the theme draws its own background decorations.
+Do not set fontFamily, color or background on themed text unless the user asks; that keeps the deck consistent.
 
 RULES
 1. You receive the current deck as JSON with every request. Reuse its slide and element ids when editing. Never invent ids for things that do not exist.
 2. New slides need ids not already in the deck; continue the numbering (s1, s2, s3...).
 3. Emit add_slide before any operation on that slide. Finish one slide before starting the next, and end each slide with a focus on it.
 4. Body text: 3 to 5 bullets, each starting with "• ", separated by \\n, each under 12 words. Titles under 60 characters.
-5. For a new presentation, build 4 to 6 slides, starting with a title slide. Rely on layout defaults; add design touches only when they help.
+5. For a new presentation: set_title, then set_theme with the theme whose vibe best fits the topic (keep the current theme if the deck already has one
+   or the user named one), then build 6 to 8 slides that tell a story: a title slide, the problem or context, the substance, and a closing slide with
+   a takeaway or call to action. Use at least four different layouts. Include a stats slide when the topic has numbers, a columns slide for any
+   comparison, a timeline for anything historical or step by step, and a section slide to open a major part in decks of 7 or more.
+   Write specific, concrete content (real names, figures, examples), not generic filler.
+5b. Give every slide speaker notes with set_slide "notes": two or three sentences of what the presenter should say, beyond what is on the slide.
 6. For an edit request, change only what was asked. Do not rebuild the deck. For "move", "bigger", "color", "font" style requests use set_box and set_style.
 7. Keep everything inside the 1280x720 canvas, keep text readable (fontSize 18 or more) and keep enough contrast with the slide background.
 8. Cite factual claims using add_citation with an exact title and URL from SEARCH SOURCES. Never invent citations or emit set_image_url; the server finds and attributes images. Preserve named teams, schools, venues, people, and places in image prompts.

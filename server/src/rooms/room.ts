@@ -317,7 +317,7 @@ export class Room {
       prompt = `${op.prompt}. High quality editorial illustration for a presentation slide, no text.`;
       finish = (url) => ({ type: "set_image_url", slideId: op.slideId, elementId: op.elementId, url });
     }
-    const sourcedSlideImageOp = this.doc.kind === "slides" && op.type === "add_image" && !op.url && sourcedImagesEnabled() ? op : undefined;
+    const sourcedSlideImageOp = this.doc.kind === "slides" && op.type === "add_image" && !op.url && op.source !== "illustration" && sourcedImagesEnabled() ? op : undefined;
     const sourcedSlideImage = !!sourcedSlideImageOp;
     if (!prompt || !finish || (!imagesEnabled && !sourcedSlideImage)) return;
     // Over the limit, wait for a slot rather than dropping the picture (it would show "drawing…" forever).

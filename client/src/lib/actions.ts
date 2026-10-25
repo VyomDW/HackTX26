@@ -13,6 +13,10 @@ const LAYOUT_ROLES: Record<Layout, string[]> = {
   "image-left": ["title", "body"],
   "image-full": ["title"],
   quote: ["quote", "attribution"],
+  section: ["kicker", "title", "subtitle"],
+  stats: ["title", "stat1", "label1", "stat2", "label2", "stat3", "label3"],
+  columns: ["title", "leftHead", "left", "rightHead", "right"],
+  timeline: ["title", "step1", "detail1", "step2", "detail2", "step3", "detail3", "step4", "detail4"],
   blank: [],
 };
 

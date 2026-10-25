@@ -14,6 +14,10 @@ const LAYOUTS: { layout: Layout; label: string }[] = [
   { layout: "image-left", label: "Image and text" },
   { layout: "image-full", label: "Full image" },
   { layout: "quote", label: "Quote" },
+  { layout: "section", label: "Section header" },
+  { layout: "stats", label: "Big numbers" },
+  { layout: "columns", label: "Two columns" },
+  { layout: "timeline", label: "Timeline" },
   { layout: "blank", label: "Blank" },
 ];
 

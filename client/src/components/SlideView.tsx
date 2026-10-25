@@ -1,10 +1,11 @@
 import { useEffect, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Box, Element, ShapeKind, Slide, Style } from "@hacktx/shared";
+import { themeOf, type Box, type Element, type ShapeKind, type Slide, type Style } from "@hacktx/shared";
 import { richText, u } from "@/lib/canvas";
 import { cn } from "@/lib/utils";
-import { useDeck } from "@/store/deck";
+import { selectDeck, useDeck } from "@/store/deck";
 import { useEditor } from "@/store/editor";
+import { ThemeDecor } from "./ThemeDecor";
 
 export interface SlideViewProps {
   slide: Slide;
@@ -25,9 +26,12 @@ export interface SlideViewProps {
  * the stage, thumbnails, presenter view and print pages at any width.
  */
 export function SlideView({ slide, live = false, overrides, renderText, elementProps, overlay, className }: SlideViewProps) {
+  const theme = themeOf(useDeck((s) => selectDeck(s).theme));
   return (
     <div className={cn("@container relative aspect-video w-full select-none", className)}>
-      <div className="absolute inset-0 overflow-hidden" style={{ background: slide.background ?? "#ffffff" }}>
+      <div className="absolute inset-0 overflow-hidden" style={{ background: slide.background ?? theme.background }}>
+        {/* A slide with its own background opts out of the theme's decorations too. */}
+        {!slide.background && <ThemeDecor theme={theme} />}
         {slide.elements.map((el) => (
           <ElementView
             key={el.id}
@@ -40,7 +44,7 @@ export function SlideView({ slide, live = false, overrides, renderText, elementP
           />
         ))}
         {slide.citations.length > 0 && (
-          <ol className="absolute" style={{ left: u(60), bottom: u(16), fontSize: u(13), color: "#94a3b8" }}>
+          <ol className="absolute" style={{ left: u(60), bottom: u(16), fontSize: u(13), color: theme.muted }}>
             {slide.citations.map((c, i) => (
               <li key={c.id}>
                 [{i + 1}]{" "}

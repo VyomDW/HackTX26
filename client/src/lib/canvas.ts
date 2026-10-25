@@ -4,7 +4,7 @@ import { CANVAS_H, CANVAS_W, type Box, type Deck, type Slide } from "@hacktx/sha
 /** Canvas units to CSS: slides are container-query sized, so 1280 units is always 100cqw. */
 export const u = (n: number) => `${(n / CANVAS_W) * 100}cqw`;
 
-export const FONTS = ["Inter", "Poppins", "Montserrat", "Playfair Display", "Lora", "Merriweather", "Oswald", "Roboto Mono"];
+export const FONTS = ["Inter", "Poppins", "Montserrat", "Space Grotesk", "Playfair Display", "Lora", "Merriweather", "Oswald", "Roboto Mono", "JetBrains Mono", "Caveat"];
 
 export const FONT_SIZES = [12, 14, 18, 20, 24, 28, 32, 36, 44, 52, 60, 72, 96, 120];
 

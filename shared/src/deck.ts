@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ThemeId, THEMES, type DeckTheme } from "./themes";
 
 /**
  * Every slide is a 1280x720 canvas. Boxes, font sizes, stroke widths and radii are all in these units,
@@ -7,7 +8,7 @@ import { z } from "zod";
 export const CANVAS_W = 1280;
 export const CANVAS_H = 720;
 
-export const Layout = z.enum(["title", "bullets", "image-left", "image-full", "quote", "blank"]);
+export const Layout = z.enum(["title", "bullets", "image-left", "image-full", "quote", "section", "stats", "columns", "timeline", "blank"]);
 export type Layout = z.infer<typeof Layout>;
 
 export const Box = z.object({
@@ -107,16 +108,13 @@ export const Deck = z.object({
   kind: z.literal("slides"),
   id: z.string(),
   title: z.string(),
+  /** Unset means the classic theme. */
+  theme: ThemeId.optional(),
   slides: z.array(Slide),
 });
 export type Deck = z.infer<typeof Deck>;
 
 export const emptyDeck = (id: string): Deck => ({ kind: "slides", id, title: "Untitled presentation", slides: [] });
-
-const INK = "#0f172a";
-const MUTED = "#64748b";
-const BODY = "#334155";
-const FONT = "Inter";
 
 /** Where an element lands, and how it looks, when it is created without an explicit box or style. */
 export function defaultPlacement(
@@ -124,27 +122,51 @@ export function defaultPlacement(
   role: string,
   kind: Element["kind"],
   existing: number,
+  theme: DeckTheme = THEMES.classic,
 ): { box: Box; style: Style } {
-  const key = `${layout}:${role}`;
+  const t = theme;
+  const title = (fontSize: number, extra: Style = {}): Style => ({ fontFamily: t.titleFont, fontSize, bold: true, color: t.ink, ...extra });
+  const body = (fontSize: number, extra: Style = {}): Style => ({ fontFamily: t.bodyFont, fontSize, color: t.body, lineHeight: 1.6, ...extra });
   const presets: Record<string, { box: Box; style: Style }> = {
-    "title:title": { box: { x: 120, y: 230, w: 1040, h: 140 }, style: { fontSize: 60, bold: true, align: "center", valign: "bottom" } },
-    "title:subtitle": { box: { x: 160, y: 390, w: 960, h: 80 }, style: { fontSize: 28, color: MUTED, align: "center" } },
+    "title:title": { box: { x: 120, y: 230, w: 1040, h: 140 }, style: title(60, { align: "center", valign: "bottom" }) },
+    "title:subtitle": { box: { x: 160, y: 390, w: 960, h: 80 }, style: body(28, { color: t.muted, align: "center", lineHeight: 1.3 }) },
     "title:img": { box: { x: 900, y: 500, w: 340, h: 190 }, style: { radius: 8, fit: "cover" } },
-    "bullets:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: { fontSize: 44, bold: true, valign: "middle" } },
-    "bullets:body": { box: { x: 80, y: 190, w: 1120, h: 470 }, style: { fontSize: 28, color: BODY, lineHeight: 1.6 } },
+    "bullets:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: title(44, { valign: "middle" }) },
+    "bullets:body": { box: { x: 80, y: 190, w: 1120, h: 470 }, style: body(28) },
     "image-left:img": { box: { x: 60, y: 60, w: 560, h: 600 }, style: { radius: 16, fit: "cover" } },
-    "image-left:title": { box: { x: 680, y: 90, w: 540, h: 140 }, style: { fontSize: 40, bold: true, valign: "bottom" } },
-    "image-left:body": { box: { x: 680, y: 260, w: 540, h: 400 }, style: { fontSize: 24, color: BODY, lineHeight: 1.6 } },
+    "image-left:title": { box: { x: 680, y: 90, w: 540, h: 140 }, style: title(40, { valign: "bottom" }) },
+    "image-left:body": { box: { x: 680, y: 260, w: 540, h: 400 }, style: body(24) },
     "image-full:img": { box: { x: 0, y: 0, w: 1280, h: 720 }, style: { fit: "cover" } },
-    "image-full:title": { box: { x: 60, y: 540, w: 1160, h: 130 }, style: { fontSize: 52, bold: true, color: "#ffffff", valign: "bottom" } },
-    "quote:quote": {
-      box: { x: 140, y: 160, w: 1000, h: 300 },
-      style: { fontSize: 44, italic: true, fontFamily: "Playfair Display", align: "center", valign: "middle" },
-    },
-    "quote:attribution": { box: { x: 140, y: 480, w: 1000, h: 60 }, style: { fontSize: 24, color: MUTED, align: "center" } },
+    "image-full:title": { box: { x: 60, y: 540, w: 1160, h: 130 }, style: title(52, { color: "#ffffff", valign: "bottom" }) },
+    "quote:quote": { box: { x: 140, y: 160, w: 1000, h: 300 }, style: { fontFamily: t.quoteFont, fontSize: 44, italic: true, color: t.ink, align: "center", valign: "middle" } },
+    "quote:attribution": { box: { x: 140, y: 480, w: 1000, h: 60 }, style: body(24, { color: t.muted, align: "center", lineHeight: 1.3 }) },
+    // Section divider: a small accent kicker over a big statement.
+    "section:kicker": { box: { x: 120, y: 220, w: 1040, h: 50 }, style: body(22, { color: t.accent, bold: true, lineHeight: 1.2 }) },
+    "section:title": { box: { x: 120, y: 280, w: 1040, h: 180 }, style: title(72, { valign: "middle", lineHeight: 1.1 }) },
+    "section:subtitle": { box: { x: 120, y: 470, w: 1040, h: 70 }, style: body(26, { color: t.muted, lineHeight: 1.3 }) },
+    "stats:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: title(44, { valign: "middle" }) },
+    "columns:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: title(44, { valign: "middle" }) },
+    "columns:leftHead": { box: { x: 80, y: 190, w: 540, h: 60 }, style: title(30, { color: t.accent }) },
+    "columns:left": { box: { x: 80, y: 260, w: 540, h: 400 }, style: body(24) },
+    "columns:rightHead": { box: { x: 660, y: 190, w: 540, h: 60 }, style: title(30, { color: t.accent }) },
+    "columns:right": { box: { x: 660, y: 260, w: 540, h: 400 }, style: body(24) },
+    "timeline:title": { box: { x: 80, y: 60, w: 1120, h: 100 }, style: title(44, { valign: "middle" }) },
+    "timeline:line": { box: { x: 80, y: 262, w: 1120, h: 6 }, style: { fill: t.accent, strokeWidth: 0, radius: 3 } },
   };
-  const preset = presets[key];
-  if (preset) return { box: { ...preset.box }, style: { fontFamily: FONT, color: INK, ...preset.style } };
+  // Stats: three big numbers with a label under each.
+  for (let i = 1; i <= 3; i++) {
+    const x = 80 + (i - 1) * 380;
+    presets[`stats:stat${i}`] = { box: { x, y: 220, w: 340, h: 150 }, style: title(80, { color: t.accent, valign: "bottom", lineHeight: 1 }) };
+    presets[`stats:label${i}`] = { box: { x, y: 390, w: 340, h: 200 }, style: body(24, { lineHeight: 1.4 }) };
+  }
+  // Timeline: four steps hanging off an accent line.
+  for (let i = 1; i <= 4; i++) {
+    const x = 80 + (i - 1) * 290;
+    presets[`timeline:step${i}`] = { box: { x, y: 290, w: 260, h: 60 }, style: title(26, { color: t.accent }) };
+    presets[`timeline:detail${i}`] = { box: { x, y: 356, w: 260, h: 280 }, style: body(20, { lineHeight: 1.5 }) };
+  }
+  const preset = presets[`${layout}:${role}`];
+  if (preset) return { box: { ...preset.box }, style: { ...preset.style } };
 
   // Cascade loose elements so several new ones don't stack exactly on top of each other.
   const step = (existing % 6) * 24;
@@ -152,7 +174,7 @@ export function defaultPlacement(
   if (kind === "shape")
     return {
       box: { x: 540 + step, y: 260 + step, w: 200, h: 200 },
-      style: { fill: "#8b5cf6", stroke: "#6d28d9", strokeWidth: 0, fontFamily: FONT, fontSize: 24, color: "#ffffff", align: "center", valign: "middle" },
+      style: { fill: t.accent, stroke: t.accent, strokeWidth: 0, fontFamily: t.bodyFont, fontSize: 24, color: t.accentInk, align: "center", valign: "middle" },
     };
-  return { box: { x: 160 + step, y: 300 + step, w: 960, h: 120 }, style: { fontFamily: FONT, fontSize: 28, color: INK } };
+  return { box: { x: 160 + step, y: 300 + step, w: 960, h: 120 }, style: { fontFamily: t.bodyFont, fontSize: 28, color: t.ink } };
 }

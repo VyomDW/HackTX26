@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowUp, Clock, Trash2, Users } from "lucide-react";
+import { ArrowUp, Clapperboard, Clock, Music, Trash2, Users } from "lucide-react";
 import type { BoardTemplate, DocKind } from "@hacktx/shared";
 import { KINDS, metaOf, newRoomId, roomUrl, TARGETS, type Target } from "@/lib/kinds";
 import { cn } from "@/lib/utils";
@@ -117,6 +117,26 @@ export function Home() {
             </div>
           </section>
         ))}
+
+        <section className="mt-10">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Media studio</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                ["music", "Music", "Describe a song", Music, "bg-rose-500"],
+                ["video", "Video", "Describe a clip", Clapperboard, "bg-sky-600"],
+              ] as const
+            ).map(([tab, label, hint, Icon, color]) => (
+              <a key={tab} href={`?media=${tab}`} className="group rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:shadow-md">
+                <div className={cn("grid size-10 place-items-center rounded-lg text-white", color)}>
+                  <Icon className="size-5" />
+                </div>
+                <div className="mt-3 font-semibold">{label}</div>
+                <div className="text-xs text-slate-500">{hint}</div>
+              </a>
+            ))}
+          </div>
+        </section>
 
         <section className="mt-10">
           <div className="flex flex-wrap items-center justify-between gap-2">

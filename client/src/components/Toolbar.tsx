@@ -18,6 +18,7 @@ import {
   Minus,
   MoveRight,
   PaintBucket,
+  Palette,
   PenLine,
   Play,
   Plus,
@@ -38,7 +39,7 @@ import {
   Undo2,
   type LucideIcon,
 } from "lucide-react";
-import type { ShapeKind, Style } from "@hacktx/shared";
+import { THEMES, themeOf, type ShapeKind, type Style } from "@hacktx/shared";
 import * as act from "@/lib/actions";
 import { FONT_SIZES, FONTS, SWATCHES } from "@/lib/canvas";
 import { cn } from "@/lib/utils";
@@ -257,6 +258,7 @@ export function Toolbar() {
 
       {!el && slide && (
         <>
+          <ThemePicker />
           <ColorTool
             icon={PaintBucket}
             label="Slide background"
@@ -382,3 +384,36 @@ function ColorTool({
 }
 
 const Sep = (): ReactNode => <div className="mx-1 h-5 w-px shrink-0 bg-slate-200" />;
+
+/** Deck themes as little slide swatches: background, title font in the ink colour and an accent bar. */
+function ThemePicker() {
+  const current = themeOf(useDeck((s) => selectDeck(s).theme));
+  return (
+    <Popover trigger={() => <Tool icon={Palette} label="Theme" text={current.label} caret />}>
+      {(close) => (
+        <div className="grid w-[372px] grid-cols-3 gap-2">
+          {Object.values(THEMES).map((t) => (
+            <button
+              key={t.id}
+              title={t.vibe}
+              onClick={() => {
+                if (t.id !== current.id) commit({ type: "set_theme", theme: t.id });
+                close();
+              }}
+              className={cn("rounded-lg p-1 text-left text-xs hover:bg-slate-100", t.id === current.id && "ring-2 ring-violet-500")}
+            >
+              <span className="relative block aspect-video overflow-hidden rounded-md ring-1 ring-black/10" style={{ background: t.background }}>
+                <span className="absolute left-2 top-2 text-[15px] font-bold leading-none" style={{ fontFamily: t.titleFont, color: t.ink }}>
+                  Aa
+                </span>
+                <span className="absolute bottom-2 left-2 h-1.5 w-8 rounded-full" style={{ background: t.accent }} />
+                <span className="absolute bottom-2 left-12 h-1.5 w-5 rounded-full opacity-60" style={{ background: t.body }} />
+              </span>
+              <span className="mt-1 block px-0.5 font-medium">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
+  );
+}

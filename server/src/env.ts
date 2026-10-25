@@ -10,4 +10,8 @@ export const env = {
   museVoiceApiKey: process.env.MUSE_VOICE_API_KEY || process.env.MUSE_API_KEY || "",
   museVoiceUrl: process.env.MUSE_VOICE_URL || "https://api.meta.ai/v1/asr/transcribe",
   serpApiKey: process.env.SERPAPI_KEY ?? "",
+  /** Media studio (music and video generation) runs on Replicate. */
+  replicateToken: process.env.REPLICATE_API_TOKEN ?? "",
+  replicateMusicModel: process.env.REPLICATE_MUSIC_MODEL || "google/lyria-2",
+  replicateVideoModel: process.env.REPLICATE_VIDEO_MODEL || "bytedance/seedance-1-lite",
 };

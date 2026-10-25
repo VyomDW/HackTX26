@@ -1,4 +1,5 @@
 import { defaultPlacement, type Box, type Deck, type Element, type Slide, type Style, type StylePatch } from "./deck";
+import { retheme, themeOf, type DeckTheme } from "./themes";
 import { layoutBoard, nodeDefaults, type Board, type BoardEdge, type BoardNode } from "./board";
 import type { Document } from "./document";
 import { evaluateSheet, isError, type Value } from "./formula";
@@ -50,9 +51,9 @@ const findElement = (slide: Slide, elementId: string): Element => {
 };
 
 /** Box and style for a new element: explicit values win over the layout default. */
-const place = (slide: Slide, elementId: string, kind: Element["kind"], box?: Box, style?: Style) => {
+const place = (slide: Slide, theme: DeckTheme, elementId: string, kind: Element["kind"], box?: Box, style?: Style) => {
   const role = elementId.startsWith(`${slide.id}-`) ? elementId.slice(slide.id.length + 1) : elementId;
-  const d = defaultPlacement(slide.layout, role, kind, slide.elements.length);
+  const d = defaultPlacement(slide.layout, role, kind, slide.elements.length, theme);
   return { box: box ?? d.box, style: { ...d.style, ...style } };
 };
 
@@ -81,20 +82,32 @@ const patchBox = (box: Box, patch: Partial<Box>): Partial<Box> => {
 
 function applySlides(deck: Deck, op: Op): { deck: Deck; inverse: Op[] } {
   const next: Deck = structuredClone(deck);
+  const theme = themeOf(next.theme);
 
   switch (op.type) {
+    case "set_theme": {
+      const prev = next.theme ?? "classic";
+      retheme(next.slides, theme, themeOf(op.theme));
+      // Classic is the default, so it is stored as no theme at all.
+      if (op.theme === "classic") delete next.theme;
+      else next.theme = op.theme;
+      return { deck: next, inverse: [{ type: "set_theme", theme: prev }] };
+    }
     case "add_slide": {
       if (next.slides.some((s) => s.id === op.id)) throw new OpError(`slide ${op.id} exists`);
       const afterIdx = op.afterId ? next.slides.findIndex((s) => s.id === op.afterId) : -1;
       const index = op.afterId && afterIdx >= 0 ? afterIdx + 1 : next.slides.length;
-      next.slides.splice(index, 0, { id: op.id, layout: op.layout, elements: [], citations: [] });
+      const slide: Slide = { id: op.id, layout: op.layout, elements: [], citations: [] };
+      // A timeline's steps hang off an accent line, so the slide comes with one.
+      if (op.layout === "timeline") slide.elements.push({ id: `${op.id}-line`, kind: "shape", shape: "rect", ...place(slide, theme, `${op.id}-line`, "shape") });
+      next.slides.splice(index, 0, slide);
       return { deck: next, inverse: [{ type: "delete_slide", slideId: op.id }] };
     }
     case "set_text": {
       const slide = findSlide(next, op.slideId);
       const existing = slide.elements.find((e) => e.id === op.elementId);
       if (!existing) {
-        slide.elements.push({ id: op.elementId, kind: "text", text: op.text, ...place(slide, op.elementId, "text", op.box, op.style) });
+        slide.elements.push({ id: op.elementId, kind: "text", text: op.text, ...place(slide, theme, op.elementId, "text", op.box, op.style) });
         return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
       }
       if (existing.kind === "image") throw new OpError(`${op.elementId} is an image`);
@@ -112,7 +125,7 @@ function applySlides(deck: Deck, op: Op): { deck: Deck; inverse: Op[] } {
         kind: "image",
         prompt: op.prompt,
         ...(op.url ? { url: op.url } : {}),
-        ...place(slide, op.elementId, "image", op.box, op.style),
+        ...place(slide, theme, op.elementId, "image", op.box, op.style),
       });
       return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
     }
@@ -124,7 +137,7 @@ function applySlides(deck: Deck, op: Op): { deck: Deck; inverse: Op[] } {
         kind: "shape",
         shape: op.shape,
         ...(op.text !== undefined ? { text: op.text } : {}),
-        ...place(slide, op.elementId, "shape", op.box, op.style),
+        ...place(slide, theme, op.elementId, "shape", op.box, op.style),
       });
       return { deck: next, inverse: [{ type: "delete_element", slideId: op.slideId, elementId: op.elementId }] };
     }

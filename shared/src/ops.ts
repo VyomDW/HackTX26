@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Box, Element, Layout, ShapeKind, Slide, Style, StylePatch } from "./deck";
+import { ThemeId } from "./themes";
 import {
   AddEdge,
   AddNode,
@@ -61,6 +62,8 @@ export const AddImage = z.object({
   elementId: z.string(),
   prompt: z.string(),
   url: z.string().optional(),
+  /** A real photo found on the web, or an illustration Muse Image draws. */
+  source: z.enum(["photo", "illustration"]).optional(),
   box: Box.optional(),
   style: Style.optional(),
 });
@@ -141,6 +144,9 @@ export const Focus = z.object({
   elementId: z.string().optional(),
 });
 
+/** Switches the deck theme, moving theme-coloured text and shapes onto the new palette and fonts. */
+export const SetTheme = z.object({ type: z.literal("set_theme"), theme: ThemeId });
+
 /** Renames the file; valid for every kind. */
 export const SetTitle = z.object({ type: z.literal("set_title"), title: z.string().max(200) });
 
@@ -162,6 +168,7 @@ export const SlidesModelOp = z.discriminatedUnion("type", [
   ReorderSlide,
   Focus,
   SetTitle,
+  SetTheme,
 ]);
 export const DocModelOp = z.discriminatedUnion("type", [InsertBlock, SetBlock, DeleteBlock, MoveBlock, SetTitle]);
 export const SheetModelOp = z.discriminatedUnion("type", [

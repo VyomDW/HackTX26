@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyOp, emptyBoard, emptySheet, emptyTextDoc, emptyNotebook, evaluateSheet, formatValue, type Document, type Op } from "@hacktx/shared";
+import { applyOp, emptyBoard, emptyDeck, emptySheet, emptyTextDoc, emptyNotebook, evaluateSheet, formatValue, THEMES, type Deck, type Document, type Op } from "@hacktx/shared";
 
 /** Applies ops in order, then checks that applying all inverses (newest first) restores the start. */
 function roundTrip(start: Document, ops: Op[]) {
@@ -121,4 +121,25 @@ test("board ops round-trip, deleting a node removes its edges, and layout is lay
   assert.ok(b.kind === "board");
   const ys = b.nodes.map((n) => n.y);
   assert.ok(ys[0]! < ys[1]! && ys[1]! < ys[2]!, `layered top to bottom despite the cycle: ${ys}`);
+});
+
+test("deck themes: new elements follow the theme, switching restyles them, undo restores", () => {
+  const deck = roundTrip(emptyDeck("d"), [
+    { type: "add_slide", id: "s1", layout: "stats" },
+    { type: "set_text", slideId: "s1", elementId: "s1-title", text: "By the numbers" },
+    { type: "set_text", slideId: "s1", elementId: "s1-stat1", text: "73%" },
+    { type: "set_text", slideId: "s1", elementId: "s1-note", text: "hand styled", style: { color: "#123456" } },
+    { type: "set_theme", theme: "terminal" },
+  ]) as Deck;
+  const t = THEMES.terminal;
+  const [title, stat, note] = deck.slides[0]!.elements;
+  assert.equal(deck.theme, "terminal");
+  assert.equal(title!.style.fontFamily, t.titleFont);
+  assert.equal(title!.style.color, t.ink);
+  assert.equal(stat!.style.color, t.accent);
+  assert.equal(note!.style.color, "#123456", "colours picked by hand are kept");
+
+  // A slide added after the switch is themed from the start.
+  const next = applyOp(deck, { type: "set_text", slideId: "s1", elementId: "s1-label1", text: "of users" }).doc as Deck;
+  assert.equal(next.slides[0]!.elements.at(-1)!.style.fontFamily, t.bodyFont);
 });
