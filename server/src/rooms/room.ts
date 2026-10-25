@@ -16,7 +16,7 @@ import {
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
 import { findSourcedImage, generateImage, imagesEnabled, sourcedImagesEnabled } from "../integrations/image";
-import { research, type Research } from "../integrations/research";
+import { research, topicOf, type Research } from "../integrations/research";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { jsonObjects, lines } from "../ndjson";
 import { loadRooms, scheduleSave } from "./store";
@@ -282,7 +282,17 @@ export class Room {
     } catch (err) {
       if (!controller.signal.aborted) {
         console.error(`[room ${this.id}] muse call failed`, err);
-        this.broadcast({ type: "error", message: errorMessage(err) });
+        // Keep slide creation usable during a Muse outage. SerpApi already returned verified,
+        // citable material, so turn it into a compact deck instead of leaving a blank canvas.
+        const fallback = this.kind === "slides" ? this.applyResearchDeck(text, found, meta) : [];
+        if (fallback.length) {
+          applied.push(...fallback);
+          reply.text = applied.join("\n");
+          this.broadcast({ type: "ai_status", status: "streaming" });
+          console.warn(`[room ${this.id}] generated a research fallback deck`);
+        } else {
+          this.broadcast({ type: "error", message: errorMessage(err) });
+        }
       }
     } finally {
       // Done or failed; either way don't replay these. Aborted ones stay for the prompt that interrupted them.
@@ -292,6 +302,68 @@ export class Room {
         this.broadcast({ type: "ai_status", status: "idle" });
       }
     }
+  }
+
+  /**
+   * Builds a small, sourced deck when every Muse model is unavailable.
+   * It only uses SerpApi results that passed through the same citation validator as model output.
+   */
+  private applyResearchDeck(request: string, found: Research, meta: { turnId?: string }): string[] {
+    if (this.doc.kind !== "slides" || !found.sources.length) return [];
+    const applied: string[] = [];
+    const topic = topicOf(request) || request.replace(/\s+/g, " ").trim().slice(0, 80) || "Research overview";
+    const requested = Number(/\b(\d{1,2})\s*[- ]?slides?\b/i.exec(request)?.[1]);
+    const total = Number.isFinite(requested) ? Math.max(2, Math.min(6, requested)) : Math.min(4, found.sources.length + 1);
+    const prefix = `fallback-${Date.now().toString(36)}`;
+
+    const add = (op: Op) => {
+      if (!this.apply(op, "ai", meta)) return;
+      applied.push(JSON.stringify(op));
+      this.illustrate(op, meta, request);
+    };
+
+    const coverId = `${prefix}-1`;
+    add({ type: "add_slide", id: coverId, layout: "title" });
+    add({ type: "set_text", slideId: coverId, elementId: `${coverId}-title`, text: topic });
+    add({
+      type: "set_text",
+      slideId: coverId,
+      elementId: `${coverId}-body`,
+      text: "A research-backed overview with verifiable sources",
+    });
+    add({
+      type: "add_image",
+      slideId: coverId,
+      elementId: `${coverId}-image`,
+      prompt: `High-resolution documentary photograph representing ${topic}`,
+      box: { x: 900, y: 500, w: 340, h: 190 },
+    });
+
+    for (let index = 1; index < total; index++) {
+      const slideId = `${prefix}-${index + 1}`;
+      const start = Math.floor(((index - 1) * found.sources.length) / Math.max(1, total - 1));
+      const end = Math.max(start + 1, Math.floor((index * found.sources.length) / Math.max(1, total - 1)));
+      const sources = found.sources.slice(start, end);
+      const title = index === total - 1 ? "Sources and takeaways" : sources[0]?.title || `${topic}: key evidence`;
+      const bullets = sources
+        .map((source) => `• ${(source.snippet || source.title).replace(/\s+/g, " ").trim()}`)
+        .filter((line) => line.length > 2)
+        .join("\n");
+
+      add({ type: "add_slide", id: slideId, layout: "bullets", afterId: index === 1 ? coverId : `${prefix}-${index}` });
+      add({ type: "set_text", slideId, elementId: `${slideId}-title`, text: title.slice(0, 110) });
+      add({
+        type: "set_text",
+        slideId,
+        elementId: `${slideId}-body`,
+        text: bullets || `• Verified source: ${sources[0]?.title || topic}`,
+      });
+      for (const source of sources) {
+        add({ type: "add_citation", slideId, source: source.title, url: source.url });
+      }
+    }
+
+    return applied;
   }
 
   private drawing = 0;
