@@ -13,7 +13,7 @@ export interface CloudFile {
 export interface CloudOptions {
   files: CloudFile[];
   openFile: (id: string) => void;
-  /** Start a new file in a tool, optionally with a first request for Nodepad. */
+  /** Start a new file in a tool, optionally with a first request for nodepad. */
   newFile: (tool: string, prompt?: string) => void;
 }
 
