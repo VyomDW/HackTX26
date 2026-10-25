@@ -24,8 +24,9 @@ export type Caption = z.infer<typeof Caption>;
 
 /** Browser -> server. */
 export const ClientMessage = z.discriminatedUnion("type", [
-  /** kind is only used when the room does not exist yet. token is the sign-in session; the server takes the user and name from it. */
-  z.object({ type: z.literal("join"), roomId: z.string(), token: z.string(), userId: z.string().optional(), name: z.string().optional(), kind: DocKind.optional() }),
+  /** kind is only used when the room does not exist yet. token is the sign-in session; the server takes the user and name from it.
+   * invite is the key from an Invite link, needed to open someone else's file the first time. */
+  z.object({ type: z.literal("join"), roomId: z.string(), token: z.string(), invite: z.string().optional(), userId: z.string().optional(), name: z.string().optional(), kind: DocKind.optional() }),
   z.object({ type: z.literal("prompt"), text: z.string().trim().min(1).max(2000) }),
   z.object({ type: z.literal("undo"), opId: z.string() }),
   /** Reverts every op from one AI response. */
@@ -42,7 +43,8 @@ export type ClientMessage = z.infer<typeof ClientMessage>;
 
 /** Server -> browser. */
 export const ServerMessage = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("snapshot"), doc: Document, history: z.array(OpEnvelope), turns: z.array(Turn).default([]) }),
+  /** invite is the key for this file's Invite link. */
+  z.object({ type: z.literal("snapshot"), invite: z.string().optional(), doc: Document, history: z.array(OpEnvelope), turns: z.array(Turn).default([]) }),
   z.object({ type: z.literal("op"), envelope: OpEnvelope }),
   z.object({ type: z.literal("turn"), turn: Turn }),
   z.object({ type: z.literal("presence"), users: z.array(z.object({ userId: z.string(), name: z.string().optional() })) }),

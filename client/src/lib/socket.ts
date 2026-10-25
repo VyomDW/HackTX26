@@ -11,6 +11,8 @@ const wsUrl = import.meta.env.VITE_WS_URL || `${location.protocol === "https:" ?
 export function useRoomSocket(roomId: string, userId: string, name?: string, kind?: DocKind) {
   const ref = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
+  /** The server refused this file: it isn't yours and the link had no valid invite. */
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
     let closed = false;
@@ -23,14 +25,24 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
       ws.onopen = () => {
         attempt = 0;
         setConnected(true);
-        ws.send(JSON.stringify({ type: "join", roomId, token: useAuth.getState().token ?? "", kind } satisfies ClientMessage));
+        const invite = new URLSearchParams(location.search).get("invite") ?? undefined;
+        ws.send(JSON.stringify({ type: "join", roomId, token: useAuth.getState().token ?? "", invite, kind } satisfies ClientMessage));
       };
       ws.onmessage = (ev) => {
         const parsed = ServerMessage.safeParse(JSON.parse(ev.data));
         if (!parsed.success) return;
         const msg = parsed.data;
         const store = useDeck.getState();
-        if (msg.type === "snapshot") store.reset(msg.doc, msg.history, msg.turns);
+        if (msg.type === "snapshot") {
+          store.reset(msg.doc, msg.history, msg.turns);
+          useDeck.setState({ invite: msg.invite });
+          // you're in now, so the key needn't sit in the address bar (or in a link copied from it)
+          const url = new URL(location.href);
+          if (url.searchParams.has("invite")) {
+            url.searchParams.delete("invite");
+            history.replaceState(null, "", url);
+          }
+        }
         else if (msg.type === "op") store.receive(msg.envelope);
         else if (msg.type === "turn") store.addTurn(msg.turn);
         else if (msg.type === "presence") store.setUsers(msg.users);
@@ -43,6 +55,10 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
         if (e.code === 4404) return location.assign(homeUrl());
         // the session ended: show the sign-in screen, which comes back to this file
         if (e.code === 4401) return forget();
+        if (e.code === 4403) {
+          closed = true;
+          return setDenied(true);
+        }
         setConnected(false);
         useDeck.getState().setAiStatus("idle");
         if (!closed) retry = setTimeout(connect, Math.min(500 * 2 ** attempt++, 8000));
@@ -62,5 +78,5 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  return { send, connected };
+  return { send, connected, denied };
 }

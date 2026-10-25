@@ -30,6 +30,8 @@ interface DeckState {
   users: { userId: string; name?: string }[];
   aiStatus: AiStatus;
   error?: { message: string; at: number };
+  /** Key for this file's Invite link, from the server. */
+  invite?: string;
   /** Where the AI cursor currently points. */
   focus?: Target;
   flash?: Flash;
