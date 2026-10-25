@@ -67,6 +67,10 @@ const focusOf = (env: OpEnvelope): Target | undefined => {
     case "move_block":
     case "add_note":
     case "set_note":
+    case "add_node":
+    case "set_node":
+    case "add_edge":
+    case "set_edge":
       return { elementId: op.id };
     case "restore_block":
       return { elementId: op.block.id };
