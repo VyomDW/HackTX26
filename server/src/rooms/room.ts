@@ -57,6 +57,10 @@ export class Room {
   turns: Turn[] = [];
   updatedAt = Date.now();
   private inflight?: { controller: AbortController; turnId: string };
+  /** True while an AI response is streaming. */
+  get busy() {
+    return !!this.inflight;
+  }
   private recentPrompts: number[] = [];
   /** Per-user undo/redo of editor changes; each entry is a group of opIds reverted together. */
   private stacks = new Map<string, { undo: string[][]; redo: string[][] }>();

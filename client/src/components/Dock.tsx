@@ -3,6 +3,7 @@ import { ArrowUp, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isBusy, useDeck } from "@/store/deck";
 import { useVoice } from "@/store/voice";
+import { ListenButton } from "./ListenButton";
 import { LevelBars, MicButton } from "./MicButton";
 
 /** Push-to-talk, what was heard, and a typed fallback, pinned under the stage. */
@@ -24,6 +25,9 @@ export function Dock({
   const transcript = useVoice((s) => s.transcript);
   const error = useVoice((s) => s.error);
   const supported = useVoice((s) => s.supported);
+  const listen = useVoice((s) => s.listen);
+  const listenError = useVoice((s) => s.listenError);
+  const caption = useVoice((s) => s.captions.at(-1));
   const [text, setText] = useState("");
 
   const submit = () => {
@@ -32,21 +36,35 @@ export function Dock({
     setText("");
   };
 
-  const label =
-    voice === "recording" ? "Listening" : voice === "uploading" ? "Transcribing" : error ? "Mic problem" : transcript ? "Heard" : supported ? "Hold Space to talk" : "Type a request";
-  const heard =
-    voice === "recording" ? "Release to send" : voice === "uploading" ? "One moment…" : error ? error : transcript ? `“${transcript}”` : busy ? "Talk or type to interrupt Muse" : "Ask Muse to build or change this";
+  const talking = voice !== "idle";
+  const [label, heard] = ((): [string, string] => {
+    if (voice === "recording") return ["Listening", "Release to send"];
+    if (talking) return ["Transcribing", "One moment…"];
+    if (listenError) return ["Listen problem", listenError];
+    if (listen !== "off") {
+      const what = caption?.acted ? "Muse is on it" : listen === "call" ? "Hearing the call" : "Listening to the room";
+      return [what, caption ? `${caption.speaker}: “${caption.text}”` : "Talk normally; Muse acts when you ask for a change"];
+    }
+    // Someone else's open mic: show what it heard, so nobody is listened to without seeing it.
+    if (caption && Date.now() - caption.ts < 15_000) return [caption.acted ? "Muse is on it" : "Heard in the room", `${caption.speaker}: “${caption.text}”`];
+    if (error) return ["Mic problem", error];
+    if (transcript) return ["Heard", `“${transcript}”`];
+    return [supported ? "Hold Space to talk" : "Type a request", busy ? "Talk or type to interrupt Muse" : "Ask Muse to build or change this"];
+  })();
+  const live = voice === "recording" || listen !== "off";
+  const failed = listenError ?? error;
 
   return (
     <div className={cn("flex items-center gap-3 border-t border-white/5 bg-gradient-to-t from-[#090b1a]/95 to-[#090b1a]/60 px-4 py-3 lg:gap-4 lg:px-6", className)}>
       <MicButton />
+      <ListenButton />
       <LevelBars className="hidden sm:flex" />
       <div className="hidden min-w-0 flex-1 md:grid">
         <small className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-dim">
-          <span className={cn("size-[7px] rounded-full", voice === "recording" ? "bg-live" : "bg-dim")} />
+          <span className={cn("size-[7px] rounded-full", live ? "bg-live" : "bg-dim")} />
           {label}
         </small>
-        <span className={cn("truncate text-[15px] font-medium", !transcript && voice === "idle" && "text-dim", error && "text-live")}>{heard}</span>
+        <span title={heard} className={cn("truncate text-[15px] font-medium", !transcript && !caption && voice === "idle" && "text-dim", failed && !talking && "text-live", caption?.acted && listen !== "off" && !talking && "text-orb")}>{heard}</span>
       </div>
       <form
         className="flex h-12 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-white/[0.03] pl-4 pr-1.5 focus-within:border-orb md:max-w-md"

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Loader2, Mic, MicOff } from "lucide-react";
 import { micSupported, usePushToTalk } from "@/hooks/usePushToTalk";
 import { useMicLevel } from "@/hooks/useMicLevel";
+import { useListen } from "@/hooks/useListen";
 import { cn } from "@/lib/utils";
 import { useEditor } from "@/store/editor";
 import { useVoice } from "@/store/voice";
@@ -16,6 +17,11 @@ const isTyping = (t: EventTarget | null) =>
 export function useVoiceBridge(roomId: string, userId: string) {
   const { state, error, transcript, analyser, start, stop } = usePushToTalk(roomId, userId);
   const level = useMicLevel(analyser, state === "recording");
+  const listen = useListen(roomId, userId);
+
+  useEffect(() => {
+    useVoice.setState({ startListen: (withCall) => void listen.start(withCall), stopListen: listen.stop });
+  }, [listen]);
 
   useEffect(() => {
     useVoice.setState({ supported: micSupported, state, error, transcript, start: () => void start(), stop: () => void stop() });

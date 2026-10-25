@@ -12,6 +12,16 @@ export const Turn = z.object({
 });
 export type Turn = z.infer<typeof Turn>;
 
+/** One line heard in Listen mode, from someone's own mic or from the call audio they share. */
+export const Caption = z.object({
+  id: z.string(),
+  speaker: z.string(),
+  text: z.string(),
+  ts: z.number(),
+  acted: z.boolean().default(false),
+});
+export type Caption = z.infer<typeof Caption>;
+
 /** Browser -> server. */
 export const ClientMessage = z.discriminatedUnion("type", [
   /** kind is only used when the room does not exist yet. */
@@ -38,5 +48,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("presence"), users: z.array(z.object({ userId: z.string(), name: z.string().optional() })) }),
   z.object({ type: z.literal("ai_status"), status: z.enum(["idle", "thinking", "streaming"]) }),
   z.object({ type: z.literal("error"), message: z.string() }),
+  /** Something heard by someone's open mic (Listen mode). Sent again with acted: true if Muse acted on it. */
+  z.object({ type: z.literal("caption"), caption: Caption }),
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
