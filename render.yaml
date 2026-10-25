@@ -2,11 +2,17 @@ services:
   - type: web
     name: nodepad
     runtime: node
-    plan: free
+    # Starter, not free: free services have no persistent disk, so accounts and files reset on every deploy or idle spin-down.
+    plan: starter
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start -w server
     healthCheckPath: /health
     autoDeployTrigger: commit
+    # The server runs in server/, so data/ (accounts, rooms, images, media) lands here.
+    disk:
+      name: nodepad-data
+      mountPath: /opt/render/project/src/server/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
