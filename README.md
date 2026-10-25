@@ -2,14 +2,13 @@
 
 # nodepad
 
-**The office suite you talk to.**
-Say what you want, and an AI co-editor builds it live, one operation at a time, while everyone in the room watches.
+**nodepad is an AI office suite where teams co-edit docs, slides, sheets, 3D and media live, and an AI listens to your voice or Zoom call and makes the edits you ask for in real time.**
 
 Slides · Docs · Sheets · Notes · Whiteboards & dev diagrams · 3D scenes · Music & video
 
 Built at **HackTX 2026** · Meta (Muse Spark) track · SerpApi track
 
-![nodepad home: a node cloud of every tool](docs/screenshots/home.png)
+![nodepad landing page: the one-stroke n wired to every tool](docs/screenshots/landing.png)
 
 </div>
 
@@ -24,6 +23,7 @@ Built at **HackTX 2026** · Meta (Muse Spark) track · SerpApi track
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
 - [Run it locally](#run-it-locally)
+- [Deploy](#deploy)
 - [Project layout](#project-layout)
 - [API reference](#api-reference)
 
@@ -43,7 +43,7 @@ That one idea gives you a lot for free:
 | Ops are validated with a shared Zod schema | A bad model line is dropped, never corrupts the file |
 | The server holds the one true document | Late joiners get a snapshot and stay in sync |
 
-You can talk to it three ways: **type** a request, **hold Space** to speak, or turn on **Listen** and just have your meeting. nodepad hears the conversation, ignores the small talk, and acts when the room agrees on a change.
+You can talk to it three ways: **type** a request, **hold Space** to speak, or turn on **Listen** and share your Zoom, Meet or Teams tab. nodepad hears the call, ignores the small talk, and acts when the room agrees on a change. Its cursor, labeled **node**, moves through the file as it works, so everyone can see what it is touching.
 
 ---
 
@@ -81,12 +81,16 @@ One infinite-canvas engine with six templates, so each feels like its own tool:
 
 ### Everywhere
 
-- **Live co-editing.** Share the link, pick a name, and see who is in the room. Everyone sees the AI's edits stream in and can edit at the same time.
+- **Accounts and your own workspace.** Sign up with a username and password; the home screen shows only your files and the ones shared with you.
+- **Live co-editing.** Click **Invite** to copy a link. Anyone signed in who opens it joins the file, sees who else is in the room, and the file is added to their workspace. Everyone sees the AI's edits stream in and can edit at the same time.
+- **The node cursor.** The AI has its own cursor labeled **node** (a pen in docs, slides and boards, an active-cell tag in sheets) that follows each edit as it lands.
 - **Voice.** Hold Space to talk; Muse Voice transcribes the clip and it becomes a request.
-- **Listen mode.** Leave the mic open, or share a **Zoom, Google Meet or Teams** tab so nodepad hears the whole call. It captions what it hears, separates speakers, and only acts on real requests ("yeah, let's add a pricing slide").
+- **Listen mode.** Leave the mic open, or share a **Zoom, Google Meet or Teams** tab so nodepad hears the whole call. When a call is shared, nodepad listens to the meeting audio only, so your laptop mic does not hear the call a second time. It captions what it hears, separates speakers, and only acts on real requests ("yeah, let's add a pricing slide").
+- **Live research.** A research router picks the SerpApi engines a request needs: Google Finance for stock prices, Finance Markets, Google Trends, Google News, Google Scholar, YouTube transcripts, or plain web search. The figures go into the prompt with their dates and URLs, so a slide about "NVDA this year" uses real numbers and cites them.
 - **Interrupt anytime.** A new request cancels the one in flight and both get done together.
 - **Undo that understands the AI.** Undo one op, a whole AI turn, or your own last edit, with redo.
-- **Workspace home.** Every file appears on the node-cloud home screen, sorted by recent activity, and can be deleted from there or from the editor.
+- **Landing page.** A three.js scene of the nodepad logo wired to every tool. Click **go to node** to fly into it and land on your home screen.
+- **Workspace home.** Your files appear on the node-cloud home screen, sorted by recent activity. The owner can delete a file for everyone; anyone else removes it from their own list.
 
 ---
 
@@ -94,6 +98,7 @@ One infinite-canvas engine with six templates, so each feels like its own tool:
 
 | | |
 | --- | --- |
+| ![Home screen](docs/screenshots/home.png) **Home**, a node cloud of every tool and your recent files | ![Sign-in screen](docs/screenshots/signin.png) **Sign in** to your own workspace |
 | ![Presentation editor](docs/screenshots/slides.png) **Presentation** with sourced images, activity feed and voice bar | ![Spreadsheet editor](docs/screenshots/sheet.png) **Spreadsheet** with totals and a generated pie chart |
 | ![Document editor](docs/screenshots/doc.png) **Document** written from a one-line request | ![Notes editor](docs/screenshots/notes.png) **Notes** with tags, pins and checklists |
 
@@ -118,11 +123,11 @@ sequenceDiagram
     C->>S: WebSocket prompt message
     S-->>C: turn + ai_status "thinking"
     S-->>O: turn + ai_status "thinking"
-    opt Slides only
-        S->>SA: Google search for the request
-        SA-->>S: sources (title, url, snippet)
+    opt Request needs facts or live data
+        S->>SA: research router picks engines (finance, trends, news, scholar, YouTube, web)
+        SA-->>S: live data + citable sources
     end
-    S->>M: system prompt + current document + sources + request
+    S->>M: system prompt + current document + live data + request
     loop Each streamed NDJSON line
         M-->>S: one JSON op per line, e.g. add_slide
         S->>S: Zod-validate, applyOp, store inverse
@@ -145,9 +150,9 @@ Every edit, whether it comes from the model or from someone dragging a shape, go
 ```mermaid
 flowchart LR
     A["Model text stream"] --> B["NDJSON line splitter"]
-    B --> C{"JSON.parse"}
-    C -- malformed --> X["Dropped, logged"]
-    C -- ok --> D{"Zod: allowed op<br/>for this file kind?"}
+    B --> C{"Extract JSON objects<br/>(skip stray prose)"}
+    C -- none --> X["Dropped, logged"]
+    C -- found --> D{"Zod: allowed op<br/>for this file kind?"}
     D -- no --> X
     D -- yes --> E{"Citation in<br/>SerpApi results?"}
     E -- no --> X
@@ -167,8 +172,10 @@ Two rules keep the AI honest:
 
 ```mermaid
 flowchart TD
-    M1["Your mic"] --> R["Record a speech clip<br/>(16 kHz mono WAV)"]
-    M2["Shared Zoom / Meet / Teams tab audio"] --> R
+    S{"Call shared?"} -- no --> M1["Your mic"]
+    S -- yes --> M2["Shared Zoom / Meet / Teams tab audio<br/>(the only source, so nothing is heard twice)"]
+    M1 --> R["Record a speech clip<br/>(16 kHz mono WAV)"]
+    M2 --> R
     R --> T["Muse Voice Transcribe<br/>(diarization for call audio)"]
     T --> CAP["Live captions for the room"]
     T --> DE["De-duplicate lines heard<br/>by several mics"]
@@ -205,7 +212,10 @@ stateDiagram-v2
 ```mermaid
 flowchart TB
     subgraph Browser["Browser · client/ (React 19 + Vite + Tailwind v4)"]
+        LAND["Landing page<br/>(three.js, go to node)"]
+        AUTH["Sign in"]
         HOME["Home node cloud<br/>(three.js)"]
+        LAND --> AUTH --> HOME
         ED["Editors<br/>Slides · Doc · Sheet · Notes<br/>Board · 3D Studio · Media"]
         ST["Zustand stores<br/>(document, editor, voice)"]
         VO["Push-to-talk + Listen<br/>(mic, tab-audio capture, WAV encoder)"]
@@ -219,24 +229,31 @@ flowchart TB
     end
 
     subgraph Server["server/ (Node + Fastify)"]
+        AC["Accounts<br/>(scrypt passwords, bearer sessions)"]
         WS["WebSocket /ws"]
-        HTTP["REST: /docs, /rooms/:id/voice,<br/>/media, /studio/meshy, /images"]
+        HTTP["REST: /auth, /docs, /rooms/:id/voice,<br/>/media, /studio/meshy, /images"]
+        RS["Research router<br/>(picks SerpApi engines)"]
+        STAT["Static client build<br/>(production)"]
+        WS --> AC
+        HTTP --> AC
         RM["Rooms<br/>authoritative doc, history,<br/>turns, presence, undo stacks"]
         LS["Listener<br/>(request judge)"]
         PR["System prompts per kind"]
-        DISK[("data/<br/>rooms, images, media, meshy,<br/>SerpApi cache")]
+        DISK[("data/<br/>rooms, accounts, images, media,<br/>meshy, SerpApi cache")]
         WS --> RM
         HTTP --> RM
         HTTP --> LS --> RM
         RM --> PR
+        RM --> RS
         RM --> DISK
+        AC --> DISK
     end
 
     subgraph Ext["External services"]
-        MS["Meta Muse Spark<br/>(OpenAI-compatible chat)"]
+        MS["Meta Muse Spark<br/>(1.3, falls back to 1.2 and 1.1)"]
         MI["Muse Image"]
         MV["Muse Voice Transcribe"]
-        SP["SerpApi<br/>(web + image search)"]
+        SP["SerpApi<br/>(web, images, finance, trends,<br/>news, scholar, YouTube)"]
         RP["Replicate<br/>(Lyria 2, Seedance)"]
         MY["Meshy<br/>(text to 3D)"]
     end
@@ -248,6 +265,7 @@ flowchart TB
     Server -.imports.-> Shared
     RM --> MS
     RM --> MI
+    RS --> SP
     RM --> SP
     HTTP --> MV
     HTTP --> RP
@@ -256,9 +274,11 @@ flowchart TB
 
 ### Key design decisions
 
+- **Accounts own files.** Each file records an owner and the accounts that can open it. Opening an invite link while signed in grants access, which is all sharing needs. The first account created takes over files saved before accounts existed.
 - **Server-authoritative rooms.** One `Room` per file owns the document. Clients apply their own edits optimistically and send them as ops; if one is rejected, the server sends that client a fresh snapshot.
 - **Shared contract.** `shared/` holds every schema and the pure `applyOp` function, so the browser and the server run identical logic and TypeScript catches drift at compile time.
 - **NDJSON over a chat API.** Muse Spark speaks the OpenAI Chat Completions protocol, so the official `openai` SDK streams it with a custom base URL. The system prompt asks for one JSON op per line, which is easy to parse incrementally and easy to reject line by line.
+- **Resilient model calls.** If the primary Muse Spark model is unavailable, the server retries and then walks a fallback chain (`MUSE_FALLBACK_MODELS`). Lines with stray prose or markdown around the JSON are still recovered.
 - **Images never block text.** Pictures are requested by description; up to four are drawn or found in the background while the rest of the response keeps streaming, then land as a normal op.
 - **Works offline.** With no `MUSE_API_KEY`, a mock stream builds a slide so the whole pipeline runs. `MUSE_FIXTURE` replays a recorded response for tests and demos.
 - **Files survive restarts.** Each room is saved as one JSON file under `data/rooms`; generated images, media and 3D models are cached on disk and served by random file name.
@@ -332,19 +352,21 @@ classDiagram
 | | Tailwind CSS v4, shadcn/ui, Radix, lucide-react | Styling and UI primitives |
 | | Zustand 5 | Document, editor and voice state |
 | | Framer Motion | Streaming and presence animations |
-| | three.js | Node-cloud home screen and the 3D Studio viewport |
+| | three.js | Landing page fly-in, node-cloud home screen and the 3D Studio viewport |
 | | Web Audio + `getDisplayMedia` | Mic levels, WAV encoding and meeting-tab audio capture |
-| **Backend** | Node 20+, Fastify 5, `@fastify/websocket` | HTTP API and real-time rooms |
+| **Backend** | Node 20+, Fastify 5, `@fastify/websocket`, `@fastify/static` | HTTP API, real-time rooms and serving the built client in production |
+| | Node `crypto` (scrypt) | Password hashing and session tokens |
 | | `openai` SDK | Streaming Muse Spark and Muse Image |
 | | ffmpeg | Converting generated music and video into download formats |
 | | tsx | Dev server with watch mode and the test runner |
 | **AI and data** | Meta **Muse Spark** | Every edit, plus the Listen-mode request judge |
 | | Meta **Muse Image** | Illustrations on slides and boards |
 | | Meta **Muse Voice Transcribe** | Push-to-talk and diarized call audio |
-| | **SerpApi** | Google web results for cited facts, Google Images for real photos (24-hour cache) |
+| | **SerpApi** | Google web, Images, Finance, Finance Markets, Trends, News, Scholar and YouTube transcripts, cached on disk |
 | | **Replicate** | Music (Google Lyria 2) and video (ByteDance Seedance) |
 | | **Meshy** | Text-to-3D models (GLB) |
 | **Tooling** | npm workspaces, concurrently | One `npm run dev` for client and server |
+| **Hosting** | Render (`render.yaml`) | One web service that builds the client and runs the server |
 
 ---
 
@@ -369,9 +391,10 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 
 | Variable | Enables | Without it |
 | --- | --- | --- |
-| `MUSE_API_KEY`, `MUSE_BASE_URL`, `MUSE_MODEL` | AI editing and Muse Image | A mock stream builds a sample slide |
+| `MUSE_API_KEY` (or `MODEL_API_KEY`), `MUSE_BASE_URL`, `MUSE_MODEL` | AI editing and Muse Image | A mock stream builds a sample slide |
+| `MUSE_FALLBACK_MODELS` | Models to try when the primary is unavailable | `muse-spark-1.2,muse-spark-1.1` |
 | `MUSE_VOICE_API_KEY` | Voice and Listen mode (defaults to `MUSE_API_KEY`) | Mic buttons report an error |
-| `SERPAPI_KEY` | Cited facts and real photos on slides | Slides use illustrations and skip citations |
+| `SERPAPI_KEY` | Live research, cited facts and real photos | No lookups; slides use illustrations and skip citations |
 | `REPLICATE_API_TOKEN` | Music and video studio | Media tools ask for a key |
 | `MESHY_API_KEY` | Text-to-3D models | 3D Studio uses primitives only |
 | `MUSE_FIXTURE` | Replays a recorded NDJSON response | |
@@ -386,6 +409,26 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 | `npm run typecheck` | Type-checks `shared`, `server` and `client` |
 | `npm run build` | Production build of the client and a server type check |
 | `npm test -w server` | Room and document tests (runs against recorded fixtures) |
+
+---
+
+## Deploy
+
+nodepad ships as **one web service on Render**, described in [`render.yaml`](render.yaml). In production the Fastify server serves the built client, the HTTP API and the WebSocket from one origin, so there is no CORS or proxy setup.
+
+```mermaid
+flowchart LR
+    GH["Push to main"] --> RB["Render build<br/>npm install, npm run build"]
+    RB --> RS["Render web service<br/>npm run start -w server"]
+    U["Browser"] -- "pages, /api, /ws" --> RS
+    RS -- "/health" --> HC["Health check"]
+```
+
+1. Create a Render Blueprint from this repository; it reads `render.yaml`.
+2. Fill in the secrets it asks for: `MODEL_API_KEY`, `SERPAPI_KEY`, `MESHY_API_KEY`, `REPLICATE_API_TOKEN`.
+3. Every commit to `main` deploys automatically.
+
+The free plan's disk is not persistent, so files and accounts reset when the service restarts. Point `ROOM_DIR` and `AUTH_FILE` at a mounted disk to keep them.
 
 ---
 
@@ -409,19 +452,20 @@ All keys live in `server/.env`. Everything is optional: missing keys switch that
 │       └── themes.ts       Deck themes
 ├── server/
 │   └── src/
-│       ├── index.ts        Fastify routes and the WebSocket endpoint
+│       ├── index.ts        Fastify routes, the WebSocket endpoint, static client in production
+│       ├── auth.ts         Accounts and sign-in sessions
 │       ├── rooms/
 │       │   ├── room.ts     Rooms: prompting, streaming, images, undo
 │       │   ├── listen.ts   Listen mode request judge
 │       │   ├── prompts.ts  System prompts and document summaries per kind
 │       │   └── store.ts    Saving rooms to disk
-│       └── integrations/   muse, voice, image, search, media, meshy
+│       └── integrations/   muse, voice, image, search, research, media, meshy
 └── client/
     └── src/
-        ├── components/     Home, editors, board, 3D, media, voice, presence
+        ├── components/     Landing, sign-in, home, editors, board, 3D, media, voice, presence
         ├── hooks/          Push-to-talk, Listen, mic level
         ├── store/          Zustand stores
-        └── lib/            Socket, actions, shortcuts, exports
+        └── lib/            Auth, socket, landing scene, actions, shortcuts, exports
 ```
 
 ---
