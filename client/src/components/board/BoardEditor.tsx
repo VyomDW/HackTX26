@@ -783,7 +783,7 @@ export function BoardEditor({ board }: { board: Board }) {
                 <button onClick={() => setEditing({ kind: "node", id: single.id })} className="h-8 shrink-0 rounded-md px-2 text-xs hover:bg-slate-100">
                   Describe
                 </button>
-                <Tool icon={WandSparkles} label="Redraw with Muse" text="Redraw" onClick={() => commit({ type: "set_node", id: single.id, url: null })} />
+                <Tool icon={WandSparkles} label="Redraw with Nodepad" text="Redraw" onClick={() => commit({ type: "set_node", id: single.id, url: null })} />
               </>
             )}
             {single?.shape === "table" && (
@@ -1011,7 +1011,7 @@ export function BoardEditor({ board }: { board: Board }) {
             </filter>
           </svg>
 
-          {/* Muse's pen follows whatever it drew last. */}
+          {/* Nodepad's pen follows whatever it drew last. */}
           {(() => {
             const d = drawings[drawings.length - 1];
             if (!d) return null;
@@ -1083,7 +1083,7 @@ export function BoardEditor({ board }: { board: Board }) {
               <div className="text-lg font-semibold text-slate-500">
                 Empty {template === "erd" ? "schema" : template === "blueprint" ? "floor plan" : template === "architecture" ? "system diagram" : template}
               </div>
-              <div className="mt-1 text-sm">Double-click to add a {SHAPE_LABEL[DEFAULT_SHAPE[template]].toLowerCase()}, or ask Muse to build it.</div>
+              <div className="mt-1 text-sm">Double-click to add a {SHAPE_LABEL[DEFAULT_SHAPE[template]].toLowerCase()}, or ask Nodepad to build it.</div>
             </div>
           </div>
         )}

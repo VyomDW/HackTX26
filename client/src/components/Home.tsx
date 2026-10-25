@@ -18,7 +18,7 @@ export function Home() {
   const stage = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = "Muse Office";
+    document.title = "Nodepad";
     let dispose: (() => void) | undefined;
     let cancelled = false;
     fetch("/api/docs")
@@ -45,7 +45,7 @@ export function Home() {
     <div className="ink nh flex h-dvh flex-col overflow-hidden bg-page text-ink">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4 sm:px-6">
         <span className="grid size-7 place-items-center rounded-lg bg-[var(--ink)] text-[15px] font-bold text-[var(--page)] shadow-[2px_2px_0_var(--orb)]">M</span>
-        <span className="text-[17px] font-bold">Muse Office</span>
+        <span className="text-[17px] font-bold">Nodepad</span>
         <span className="ml-2 hidden truncate text-sm text-dim sm:inline">Docs, sheets, slides and notes you co-edit with AI</span>
       </header>
       <div ref={stage} className="stage" />

@@ -46,7 +46,7 @@ function Outline({ node, drawMs }: { node: BoardNode; drawMs?: number }) {
   const { w, h } = node;
   const fill = node.fill ?? "#ffffff";
   const stroke = node.stroke ?? "#334155";
-  // While Muse draws it, the border traces itself in and the fill follows (non-scaling-stroke would break pathLength).
+  // While Nodepad draws it, the border traces itself in and the fill follows (non-scaling-stroke would break pathLength).
   const p = drawMs
     ? { fill, stroke, strokeWidth: 2, pathLength: 1, style: drawStyle("pen-outline", drawMs) }
     : { fill, stroke, strokeWidth: 2, vectorEffect: "non-scaling-stroke" as const };
@@ -91,7 +91,7 @@ function Outline({ node, drawMs }: { node: BoardNode; drawMs?: number }) {
 }
 
 /** One board node, drawn in canvas units (the parent applies pan and zoom). */
-/** `drawMs` is set while Muse is drawing an outlined shape, so its border traces in. */
+/** `drawMs` is set while Nodepad is drawing an outlined shape, so its border traces in. */
 export function BoardNodeView({ node, editor, highlighted, drawMs }: { node: BoardNode; editor?: ReactNode; highlighted?: boolean; drawMs?: number }) {
   if (isBlueprintShape(node.shape)) return <BlueprintNode node={node} editor={editor} />;
   const fs = node.fontSize ?? (node.shape === "text" ? 24 : 16);
@@ -112,7 +112,7 @@ export function BoardNodeView({ node, editor, highlighted, drawMs }: { node: Boa
           >
             <Sparkles className="size-6 animate-pulse" style={{ color: "#8b5cf6" }} />
             <div className="text-[13px] font-semibold" style={{ color: "#6d28d9" }}>
-              {node.text ? "Muse is drawing…" : "Describe a picture"}
+              {node.text ? "Nodepad is drawing…" : "Describe a picture"}
             </div>
             <div className="line-clamp-3 w-full text-xs" style={{ color: "#64748b" }}>
               {editor ?? node.text}

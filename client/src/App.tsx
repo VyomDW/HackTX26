@@ -75,10 +75,10 @@ function Workspace({
 
   useEffect(() => useEditor.setState({ send }), [send]);
   useEffect(() => {
-    if (loaded) document.title = `${doc.title} · Muse Office`;
+    if (loaded) document.title = `${doc.title} · Nodepad`;
   }, [loaded, doc.title]);
 
-  // A new board takes the template picked on the home screen (before any first request, so Muse knows it).
+  // A new board takes the template picked on the home screen (before any first request, so Nodepad knows it).
   const setTemplate = useRef(false);
   useEffect(() => {
     if (!loaded || !connected || setTemplate.current) return;
@@ -172,7 +172,7 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
     <header className="flex h-14 shrink-0 items-center gap-2 bg-page px-3 print:hidden sm:gap-3 lg:px-4">
       <a href={location.pathname} title="All files" className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-display text-[17px] font-bold hover:bg-slate-100">
         <span className="grid size-7 place-items-center rounded-lg bg-[var(--ink)] text-[15px] text-[var(--page)] shadow-[2px_2px_0_var(--orb)]">M</span>
-        <span className="max-sm:hidden">Muse</span>
+        <span className="max-sm:hidden">Nodepad</span>
         <LayoutGrid className="size-3.5 text-dim" />
       </a>
       <div className="flex min-w-0 items-center gap-2 border-l border-line pl-2 sm:pl-3">
