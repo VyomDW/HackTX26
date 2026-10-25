@@ -5,7 +5,7 @@ export const env = {
   museBaseUrl: process.env.MUSE_BASE_URL || "https://api.meta.ai/v1",
   museModel: process.env.MUSE_MODEL || "muse-spark-1.3",
   // Tried in order when the primary model is temporarily unavailable or unavailable to this API key.
-  museFallbackModels: (process.env.MUSE_FALLBACK_MODELS || "muse-spark-1.2,muse-spark-1.1")
+  museFallbackModels: (process.env.MUSE_FALLBACK_MODELS || "muse-spark-1.2-contributor,muse-spark-1.2,muse-spark-1.1")
     .split(",")
     .map((model) => model.trim())
     .filter(Boolean),
