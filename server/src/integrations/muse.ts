@@ -45,7 +45,8 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
         );
         break;
       } catch (err) {
-        const modelUnavailable = err instanceof APIError && err.status === 404 && err.code === "model_not_found";
+        // Meta sometimes omits the machine-readable error code, but 404 still means this model cannot serve the request.
+        const modelUnavailable = err instanceof APIError && err.status === 404;
         if (!modelUnavailable || signal?.aborted) throw err;
         lastModelError = err;
         if (attempt === 0) {
