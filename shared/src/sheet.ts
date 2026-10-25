@@ -65,7 +65,9 @@ export const emptySheet = (id: string): Sheet => ({
 });
 
 /** Sets raw values; null clears a cell's value (its formatting stays). */
-export const SetCells = z.object({ type: z.literal("set_cells"), cells: z.record(z.string(), z.string().nullable()) });
+/** Cell input is always text; models often send 452.42 or true unquoted, so those are taken as their text form. */
+const CellInput = z.union([z.string(), z.number().transform(String), z.boolean().transform((b) => (b ? "TRUE" : "FALSE"))]);
+export const SetCells = z.object({ type: z.literal("set_cells"), cells: z.record(z.string(), CellInput.nullable()) });
 export const SetCellStyle = z.object({ type: z.literal("set_cell_style"), range: z.string(), style: CellStylePatch });
 export const InsertRows = z.object({ type: z.literal("insert_rows"), at: z.number().int().min(0), count: z.number().int().min(1).max(500) });
 export const DeleteRows = z.object({ type: z.literal("delete_rows"), at: z.number().int().min(0), count: z.number().int().min(1).max(500) });

@@ -16,7 +16,7 @@ import {
 } from "@hacktx/shared";
 import { APIConnectionError, APIConnectionTimeoutError, APIError } from "openai";
 import { findSourcedImage, generateImage, imagesEnabled, sourcedImagesEnabled } from "../integrations/image";
-import { search, type SearchResult } from "../integrations/search";
+import { research, type Research } from "../integrations/research";
 import { callMuse, type ChatMessage } from "../integrations/muse";
 import { lines } from "../ndjson";
 import { loadRooms, scheduleSave } from "./store";
@@ -204,14 +204,10 @@ export class Room {
     this.broadcast({ type: "turn", turn });
     this.pending.push({ speaker, text });
     const requests = [...this.pending];
-    let sources: SearchResult[] = [];
-    if (this.kind === "slides") {
-      try {
-        sources = await search(requests.map((r) => r.text).join("\n"));
-      } catch (err) {
-        console.warn("[room " + this.id + "] search unavailable", err instanceof Error ? err.message : err);
-      }
-    }
+    // Live facts for the request: stock prices, markets, trends, news, papers, video transcripts or a web search.
+    const found = await research(requests.map((r) => r.text).join("\n"), this.kind, { newFile: this.turns.length <= 1 });
+    if (found.used.length) console.log(`[room ${this.id}] research: ${found.used.join(", ")}`);
+    const sources = found.sources;
     if (controller.signal.aborted) {
       if (this.inflight?.controller === controller) {
         this.inflight = undefined;
@@ -219,7 +215,7 @@ export class Room {
       }
       return;
     }
-    const messages = this.buildMessages(requests, sources);
+    const messages = this.buildMessages(requests, found);
     // Applied lines are remembered as the AI's reply, which also shows it its own format on later turns.
     // The reply slot is reserved now and filled as ops land, so an interrupting prompt still sees it in order.
     const reply = { role: "assistant" as const, text: "(no changes)" };
@@ -357,9 +353,10 @@ export class Room {
   }
 
   /** Built before the new turn is recorded, so history holds only earlier turns. */
-  private buildMessages(requests: { speaker: string; text: string }[], sources: SearchResult[] = []): ChatMessage[] {
+  private buildMessages(requests: { speaker: string; text: string }[], found?: Research): ChatMessage[] {
     const request = requests.length === 1 ? requests[0]!.text : requests.map((r) => `${r.speaker}: ${r.text}`).join("\n");
-    const sourceContext = this.kind === "slides" ? "SEARCH SOURCES (cite only exact title and URL pairs from this list):\n" + JSON.stringify(sources) + "\n\n" : "";
+    const citable = this.kind === "slides" ? "SEARCH SOURCES (cite only exact title and URL pairs from this list):\n" + JSON.stringify(found?.sources ?? []) + "\n\n" : "";
+    const sourceContext = (found?.context ? found.context + "\n" : "") + citable;
     return [
       { role: "developer", content: SYSTEM_PROMPTS[this.kind] },
       ...this.conversation.slice(-10).map(({ role, text }) => ({ role, content: text })),
