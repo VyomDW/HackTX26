@@ -27,7 +27,7 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
   }
 
   const models = [...new Set([env.museModel, ...env.museFallbackModels].filter(Boolean))];
-  let stream: AsyncIterable<{ type: string; delta?: string }> | undefined;
+  let stream: AsyncIterable<{ type: string; delta?: unknown }> | undefined;
   let lastModelError: unknown;
 
   // During an outage Meta's models flicker on and off minute to minute, so if every one is down
@@ -75,7 +75,8 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
 
   if (!stream) throw lastModelError ?? new Error("No Muse model is available");
   for await (const event of stream) {
-    if (event.type === "response.output_text.delta" && event.delta) yield event.delta;
+    // Only text deltas carry the reply; other event types (tool calls, shell output) have non-string deltas.
+    if (event.type === "response.output_text.delta" && typeof event.delta === "string") yield event.delta;
   }
 }
 
