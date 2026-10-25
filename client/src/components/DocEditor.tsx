@@ -25,7 +25,8 @@ import type { Block, BlockType, TextDoc, UserOp } from "@hacktx/shared";
 import { redoMine, undoMine } from "@/lib/actions";
 import { fileToDataUrl, shortId } from "@/lib/canvas";
 import { download, safeName } from "@/lib/download";
-import { docToMarkdown, docToWordHtml, inline, listNumbers } from "@/lib/markdown";
+import { docToMarkdown, inline, listNumbers } from "@/lib/markdown";
+import { docToDocx, downloadBlob } from "@/lib/office";
 import { useTypewriter } from "@/lib/typing";
 import { cn } from "@/lib/utils";
 import { isBusy, useDoc } from "@/store/deck";
@@ -153,11 +154,11 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
               <div className="flex w-48 flex-col text-sm">
                 <MenuItem
                   onClick={() => {
-                    download(`${safeName(doc.title)}.doc`, docToWordHtml(doc), "application/msword");
                     close();
+                    void docToDocx(doc).then((blob) => downloadBlob(`${safeName(doc.title)}.docx`, blob));
                   }}
                 >
-                  Word document (.doc)
+                  Word document (.docx)
                 </MenuItem>
                 <MenuItem
                   onClick={() => {
