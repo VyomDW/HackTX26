@@ -228,6 +228,23 @@
   pointer-events: none;
   z-index: 1;
 }
+/* Documents are shown and printed as separate letter-sized sheets. */
+.ink .doc-page {
+  break-after: page;
+  page-break-after: always;
+}
+.ink .doc-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+@media print {
+  .ink .doc-page {
+    min-height: 0;
+  }
+  .ink .doc-page.taped::before {
+    display: none;
+  }
+}
 .ink .ink-btn {
   border: 1.5px solid var(--ink);
   box-shadow: 3px 3px 0 var(--ink);

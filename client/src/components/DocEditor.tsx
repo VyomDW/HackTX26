@@ -49,6 +49,7 @@ const TEXT_TYPES: { type: BlockType; label: string }[] = [
 const LIST_TYPES: BlockType[] = ["bullet", "numbered", "todo"];
 const hasText = (t: BlockType) => t !== "divider" && t !== "image";
 const newBlockId = () => `b-${shortId()}`;
+const DOC_PAGE_HEIGHT = 1056;
 
 /** Typing "# ", "- ", "1. ", "[] ", "> " or "```" at the start of a paragraph converts it, as in Docs and Notion. */
 const SHORTCUTS: [RegExp, BlockType][] = [
@@ -71,7 +72,9 @@ interface BlockApi {
 export function DocEditor({ doc }: { doc: TextDoc }) {
   const [activeId, setActiveId] = useState<string>();
   const [focusReq, setFocusReq] = useState<{ id: string; caret: Caret; n: number }>();
+  const [pageStarts, setPageStarts] = useState([0]);
   const apis = useRef(new Map<string, BlockApi>());
+  const pagesRef = useRef<HTMLDivElement>(null);
   const nums = useMemo(() => listNumbers(doc.blocks), [doc.blocks]);
   const active = doc.blocks.find((b) => b.id === activeId);
 
@@ -94,6 +97,64 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
     commit({ ...op, afterId: activeId ?? doc.blocks.at(-1)?.id ?? null });
 
   const words = useMemo(() => doc.blocks.reduce((n, b) => n + (b.text.match(/\S+/g)?.length ?? 0), 0), [doc.blocks]);
+
+  // Keep blocks on letter-sized sheets. Measuring the rendered rows means long
+  // paragraphs and images get the space they actually need instead of relying
+  // on a brittle fixed block count.
+  useLayoutEffect(() => {
+    const root = pagesRef.current;
+    if (!root) return;
+    let frame = 0;
+    const paginate = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const page = root.querySelector<HTMLElement>(".doc-page");
+        if (!page) return;
+        const style = getComputedStyle(page);
+        const capacity = DOC_PAGE_HEIGHT - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        const title = root.querySelector<HTMLElement>("[data-doc-title]");
+        const outerHeight = (el: HTMLElement) => {
+          const css = getComputedStyle(el);
+          return el.getBoundingClientRect().height + parseFloat(css.marginTop) + parseFloat(css.marginBottom);
+        };
+        let used = title ? outerHeight(title) : 0;
+        const starts = [0];
+        const rows = [...root.querySelectorAll<HTMLElement>("[data-doc-index]")].sort(
+          (a, b) => Number(a.dataset.docIndex) - Number(b.dataset.docIndex),
+        );
+        for (const row of rows) {
+          const index = Number(row.dataset.docIndex);
+          const height = outerHeight(row);
+          if (index > 0 && used + height > capacity) {
+            starts.push(index);
+            used = 0;
+          }
+          used += height;
+        }
+        setPageStarts((current) =>
+          current.length === starts.length && current.every((value, i) => value === starts[i]) ? current : starts,
+        );
+      });
+    };
+    paginate();
+    const observer = new ResizeObserver(paginate);
+    root.querySelectorAll<HTMLElement>(".doc-page, [data-doc-title], [data-doc-index]").forEach((el) => observer.observe(el));
+    window.addEventListener("resize", paginate);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", paginate);
+    };
+  }, [doc.blocks, pageStarts]);
+
+  const pages = useMemo(
+    () =>
+      pageStarts.map((start, pageIndex) => ({
+        start,
+        blocks: doc.blocks.slice(start, pageStarts[pageIndex + 1] ?? doc.blocks.length),
+      })),
+    [doc.blocks, pageStarts],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -183,30 +244,47 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
       </div>
 
       <div className="desk min-h-0 flex-1 overflow-y-auto px-3 py-8 print:overflow-visible print:bg-white print:p-0 sm:px-6 sm:py-12">
-        <div
-          className="ink-page taped mx-auto min-h-[70vh] w-full max-w-[816px] px-6 py-10 print:max-w-none print:border-0 print:shadow-none sm:px-[72px] sm:py-16"
-          onClick={(e) => e.target === e.currentTarget && addAtEnd()}
-        >
-          <TitleInput title={doc.title} />
-          {doc.blocks.length === 0 && (
-            <button onClick={addAtEnd} className="mt-2 w-full text-left text-[15px] text-slate-400">
-              Start writing, or ask nodepad to draft something…
-            </button>
-          )}
-          {doc.blocks.map((block, i) => (
-            <BlockRow
-              key={block.id}
-              block={block}
-              number={nums.get(block.id)}
-              prev={doc.blocks[i - 1]}
-              next={doc.blocks[i + 1]}
-              focusReq={focusReq?.id === block.id ? focusReq : undefined}
-              onActive={(on) => setActiveId((cur) => (on ? block.id : cur === block.id ? undefined : cur))}
-              focusBlock={focusBlock}
-              register={(api) => (api ? apis.current.set(block.id, api) : apis.current.delete(block.id))}
-            />
+        <div ref={pagesRef} className="mx-auto flex w-full max-w-[816px] flex-col gap-10 print:max-w-none print:gap-0">
+          {pages.map(({ start, blocks }, pageIndex) => (
+            <div key={`${pageIndex}-${start}`}>
+              <div
+                className="doc-page ink-page taped min-h-[1056px] w-full px-6 py-10 print:border-0 print:shadow-none sm:px-[72px] sm:py-16"
+                onClick={(e) => e.target === e.currentTarget && addAtEnd()}
+              >
+                {pageIndex === 0 && (
+                  <div data-doc-title>
+                    <TitleInput title={doc.title} />
+                  </div>
+                )}
+                {pageIndex === 0 && doc.blocks.length === 0 && (
+                  <button onClick={addAtEnd} className="mt-2 w-full text-left text-[15px] text-slate-400">
+                    Start writing, or ask nodepad to draft something…
+                  </button>
+                )}
+                {blocks.map((block, localIndex) => {
+                  const i = start + localIndex;
+                  return (
+                    <BlockRow
+                      key={block.id}
+                      index={i}
+                      block={block}
+                      number={nums.get(block.id)}
+                      prev={doc.blocks[i - 1]}
+                      next={doc.blocks[i + 1]}
+                      focusReq={focusReq?.id === block.id ? focusReq : undefined}
+                      onActive={(on) => setActiveId((cur) => (on ? block.id : cur === block.id ? undefined : cur))}
+                      focusBlock={focusBlock}
+                      register={(api) => (api ? apis.current.set(block.id, api) : apis.current.delete(block.id))}
+                    />
+                  );
+                })}
+                {pageIndex === pages.length - 1 && <div className="h-24 cursor-text print:hidden" onClick={addAtEnd} />}
+              </div>
+              <div className="mt-3 text-center text-xs font-medium tabular-nums text-slate-500 print:hidden">
+                Page {pageIndex + 1} of {pages.length}
+              </div>
+            </div>
           ))}
-          <div className="h-24 cursor-text print:hidden" onClick={addAtEnd} />
         </div>
       </div>
     </div>
@@ -245,6 +323,7 @@ const TYPE_CLASS: Record<BlockType, string> = {
 };
 
 function BlockRow({
+  index,
   block,
   number,
   prev,
@@ -254,6 +333,7 @@ function BlockRow({
   focusBlock,
   register,
 }: {
+  index: number;
   block: Block;
   number?: number;
   prev?: Block;
@@ -450,6 +530,7 @@ function BlockRow({
     return (
       <div
         ref={rowRef}
+        data-doc-index={index}
         tabIndex={0}
         onFocus={() => onActive(true)}
         onBlur={() => onActive(false)}
@@ -482,6 +563,7 @@ function BlockRow({
   return (
     <div
       ref={rowRef}
+      data-doc-index={index}
       className={cn(
         "group relative flex rounded-sm transition-colors",
         block.type === "quote" && "my-2 border-l-[3px] border-slate-300 pl-4",
