@@ -131,3 +131,6 @@ export const roomUrl = (id: string, kind?: DocKind, prompt?: string, template?: 
   if (prompt) p.set("q", prompt);
   return `${location.pathname}?${p}`;
 };
+
+/** The node-cloud home screen; the bare path shows the landing page instead. */
+export const homeUrl = () => `${location.pathname}?home`;
