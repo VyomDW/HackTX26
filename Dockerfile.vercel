@@ -1,0 +1,24 @@
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY client/package.json client/package.json
+COPY server/package.json server/package.json
+COPY shared/package.json shared/package.json
+
+RUN npm ci --include=dev
+
+COPY . .
+
+RUN npm run build
+
+ENV NODE_ENV=production
+ENV SERVER_HOST=0.0.0.0
+ENV PORT=80
+
+# Vercel containers have ephemeral writable storage in /tmp. Source and built
+# client assets stay under /app and are resolved from import.meta.url.
+WORKDIR /tmp
+
+CMD ["node", "/app/node_modules/tsx/dist/cli.mjs", "/app/server/src/index.ts"]
