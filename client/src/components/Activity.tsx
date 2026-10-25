@@ -33,6 +33,11 @@ export function describe(env: OpEnvelope, deck: Deck): string {
     return r.replace(/[-_]+/g, " ");
   };
   switch (op.type) {
+    case "add_primitive": return `added ${op.name}`;
+    case "set_primitive": return `updated 3D object ${op.name ?? op.id}`;
+    case "delete_primitive": return "removed a 3D object";
+    case "restore_primitive": return `restored ${op.object.name}`;
+    case "set_environment": return "updated the scene environment";
     case "add_slide":
       return `added ${slideNo(op.id)}`;
     case "set_text":

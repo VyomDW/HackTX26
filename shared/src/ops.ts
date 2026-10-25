@@ -1,3 +1,4 @@
+import { AddPrimitive, SetPrimitive, DeletePrimitive, SetEnvironment, RestorePrimitive } from "./studio";
 import { z } from "zod";
 import { Box, Element, Layout, ShapeKind, Slide, Style, StylePatch } from "./deck";
 import {
@@ -192,17 +193,20 @@ export const BoardModelOp = z.discriminatedUnion("type", [
 ]);
 
 /** The op vocabulary the model gets for each kind of file. */
+export const StudioModelOp = z.discriminatedUnion("type", [AddPrimitive, SetPrimitive, DeletePrimitive, SetEnvironment, SetTitle]);
 export const MODEL_OPS: Record<DocKind, z.ZodType<ModelOp>> = {
   slides: SlidesModelOp,
   doc: DocModelOp,
   sheet: SheetModelOp,
   notes: NotesModelOp,
   board: BoardModelOp,
+  studio: StudioModelOp,
 };
 
 /** Anything the model may emit, across all kinds. */
 export const ModelOp = z.discriminatedUnion("type", [
   ...SlidesModelOp.options,
+  AddPrimitive, SetPrimitive, DeletePrimitive, SetEnvironment,
   InsertBlock,
   SetBlock,
   DeleteBlock,
@@ -265,6 +269,7 @@ export const Op = z.discriminatedUnion("type", [
   RestoreChart,
   SetGrid,
   RestoreNote,
+  RestorePrimitive,
   AddStroke,
   DeleteStroke,
   RestoreNode,

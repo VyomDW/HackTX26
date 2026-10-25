@@ -13,6 +13,7 @@ import { NotesEditor } from "@/components/NotesEditor";
 import { NameDialog, PresenceStack } from "@/components/Presence";
 import { Present, PrintDeck } from "@/components/Present";
 import { SheetEditor } from "@/components/SheetEditor";
+import { StudioEditor } from "@/components/StudioEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
 import { useIdentity } from "@/lib/identity";
 import { metaOf } from "@/lib/kinds";
@@ -116,6 +117,8 @@ function Workspace({
               <DocEditor doc={doc} />
             ) : doc.kind === "sheet" ? (
               <SheetEditor sheet={doc} />
+            ) : doc.kind === "studio" ? (
+              <StudioEditor scene={doc} onPrompt={prompt} />
             ) : doc.kind === "board" ? (
               <BoardEditor board={doc} />
             ) : (

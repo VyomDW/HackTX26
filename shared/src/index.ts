@@ -1,3 +1,4 @@
+export * from "./studio";
 export * from "./deck";
 export * from "./textdoc";
 export * from "./sheet";

@@ -6,6 +6,7 @@ export const KINDS: Record<
   DocKind,
   { label: string; noun: string; icon: LucideIcon; color: string; tint: string; placeholder: string; suggestions: string[] }
 > = {
+  studio: { label: "3D Studio", noun: "3D scene", icon: DraftingCompass, color: "bg-indigo-600", tint: "text-indigo-600 bg-indigo-50", placeholder: "Describe a 3D space, or ask Muse to change an object…", suggestions: ["Build a cozy coffee shop with tables, a counter and plants", "Create a forest campsite with a cabin and campfire", "Design a small city park with paths and benches"] },
   slides: {
     label: "Presentation",
     noun: "slides",
@@ -113,6 +114,7 @@ export interface Target extends Meta {
   group: "office" | "dev";
 }
 export const TARGETS: Target[] = [
+  { ...KINDS.studio, key: "studio", kind: "studio", group: "dev" },
   ...(["slides", "doc", "sheet", "notes"] as const).map((kind) => ({ ...KINDS[kind], key: kind, kind, group: "office" as const })),
   ...(["whiteboard", "flowchart", "blueprint", "architecture", "erd", "mindmap"] as BoardTemplate[]).map((template) => ({ ...BOARD_TEMPLATES[template], key: template, kind: "board" as const, template, group: "dev" as const })),
 ];

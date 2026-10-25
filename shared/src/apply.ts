@@ -1,5 +1,6 @@
 import { defaultPlacement, type Box, type Deck, type Element, type Slide, type Style, type StylePatch } from "./deck";
 import { layoutBoard, nodeDefaults, type Board, type BoardEdge, type BoardNode } from "./board";
+import { DEFAULT_ENVIRONMENT, type Studio } from "./studio";
 import type { Document } from "./document";
 import { evaluateSheet, isError, type Value } from "./formula";
 import type { Notebook } from "./notes";
@@ -22,6 +23,7 @@ export function applyOp(doc: Document, op: Op): ApplyResult {
   if (op.type === "noop") return { doc, inverse: [{ type: "noop" }] };
   if (op.type === "set_title") return { doc: { ...doc, title: op.title }, inverse: [{ type: "set_title", title: doc.title }] };
   switch (doc.kind) {
+    case "studio": return applyStudio(doc, op);
     case "slides": {
       const r = applySlides(doc, op);
       return { doc: r.deck, inverse: r.inverse };
@@ -644,5 +646,57 @@ function applyBoard(board: Board, op: Op): ApplyResult {
     }
     default:
       throw foreign(op, "board");
+  }
+}
+
+function applyStudio(scene: Studio, op: Op): ApplyResult {
+  const next = structuredClone(scene);
+  const indexOf = (id: string) => next.objects.findIndex((o) => o.id === id);
+  switch (op.type) {
+    case "set_environment": {
+      const previous = { ...(next.environment ?? DEFAULT_ENVIRONMENT) };
+      next.environment = { ...previous, ...Object.fromEntries(Object.entries(op).filter(([key, value]) => key !== "type" && value !== undefined)) } as typeof DEFAULT_ENVIRONMENT;
+      const inverse: Op & { type: "set_environment" } = { type: "set_environment" };
+      if (op.preset !== undefined) inverse.preset = previous.preset;
+      if (op.sky !== undefined) inverse.sky = previous.sky;
+      if (op.ground !== undefined) inverse.ground = previous.ground;
+      if (op.grid !== undefined) inverse.grid = previous.grid;
+      return { doc: next, inverse: [inverse] };
+    }
+    case "add_primitive": {
+      if (indexOf(op.id) >= 0) throw new OpError(`object ${op.id} exists`);
+      next.objects.push({ rx: op.rx ?? 0, ry: op.ry ?? 0, rz: op.rz ?? 0, sx: op.sx ?? 1, sy: op.sy ?? 1, sz: op.sz ?? 1, bulge: op.bulge ?? 0, taper: op.taper ?? 0, twist: op.twist ?? 0, id: op.id, name: op.name, primitive: op.primitive, x: op.x ?? 0, y: op.y ?? 0, z: op.z ?? 0, size: op.size ?? 1, color: op.color ?? "#8b5cf6", ...(op.assetUrl ? { assetUrl: op.assetUrl } : {}) });
+      return { doc: next, inverse: [{ type: "delete_primitive", id: op.id }] };
+    }
+    case "set_primitive": {
+      const object = next.objects[indexOf(op.id)];
+      if (!object) throw new OpError(`unknown object ${op.id}`);
+      const inverse: Op & { type: "set_primitive" } = { type: "set_primitive", id: op.id };
+      for (const key of ["rx", "ry", "rz", "sx", "sy", "sz", "bulge", "taper", "twist"] as const) { if (op[key] !== undefined) { inverse[key] = object[key]; object[key] = op[key]!; } }
+      if (op.name !== undefined) [inverse.name, object.name] = [object.name, op.name];
+      if (op.x !== undefined) [inverse.x, object.x] = [object.x, op.x];
+      if (op.y !== undefined) [inverse.y, object.y] = [object.y, op.y];
+      if (op.z !== undefined) [inverse.z, object.z] = [object.z, op.z];
+      if (op.size !== undefined) [inverse.size, object.size] = [object.size, op.size];
+      if (op.color !== undefined) [inverse.color, object.color] = [object.color, op.color ?? "#8b5cf6"];
+      if (op.assetUrl !== undefined) {
+        inverse.assetUrl = object.assetUrl ?? null;
+        if (op.assetUrl === null) delete object.assetUrl;
+        else object.assetUrl = op.assetUrl;
+      }
+      return { doc: next, inverse: [inverse] };
+    }
+    case "delete_primitive": {
+      const index = indexOf(op.id);
+      if (index < 0) throw new OpError(`unknown object ${op.id}`);
+      const [object] = next.objects.splice(index, 1);
+      return { doc: next, inverse: [{ type: "restore_primitive", object: object!, index }] };
+    }
+    case "restore_primitive":
+      if (indexOf(op.object.id) >= 0) throw new OpError(`object ${op.object.id} exists`);
+      next.objects.splice(Math.min(op.index, next.objects.length), 0, op.object);
+      return { doc: next, inverse: [{ type: "delete_primitive", id: op.object.id }] };
+    default:
+      throw foreign(op, "3D scene");
   }
 }

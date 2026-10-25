@@ -25,7 +25,7 @@ import { describeDocument, SYSTEM_PROMPTS } from "./prompts";
 const PROMPTS_PER_MINUTE = 20;
 const MAX_PARALLEL_IMAGES = 4;
 
-const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook", board: "board" };
+const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook", board: "board", studio: "3D scene" };
 
 /** Turns SDK failures into something worth showing a user. */
 function errorMessage(err: unknown): string {
