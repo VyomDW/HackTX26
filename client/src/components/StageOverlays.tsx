@@ -29,15 +29,15 @@ function CameraChip() {
   const text = !slides.length
     ? "Waiting for a request"
     : follow && busy && focusIndex >= 0
-      ? `Following Nodepad · slide ${focusIndex + 1}`
+      ? `Following nodepad · slide ${focusIndex + 1}`
       : follow
-        ? `Following Nodepad · slide ${index + 1} of ${slides.length}`
-        : `Slide ${index + 1} of ${slides.length} · Follow Nodepad`;
+        ? `Following nodepad · slide ${index + 1} of ${slides.length}`
+        : `Slide ${index + 1} of ${slides.length} · Follow nodepad`;
 
   return (
     <button
       onClick={() => slides.length && useEditor.setState((s) => ({ follow: !s.follow }))}
-      title={follow ? "Stop following Nodepad" : "Keep the stage on whatever Nodepad is editing"}
+      title={follow ? "Stop following nodepad" : "Keep the stage on whatever nodepad is editing"}
       className={cn(
         "absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 font-mono text-[11px] backdrop-blur transition",
         follow ? "border-orb/40 bg-panel/90 text-orb" : "border-line bg-panel/90 text-dim hover:text-ink",
@@ -80,7 +80,7 @@ function RequestBubble({ userId }: { userId: string }) {
           <q className="text-[15px] font-semibold leading-snug">{turn.text}</q>
           {busy && (
             <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-orb">
-              <AiAvatar className="size-3" /> Nodepad is on it
+              <AiAvatar className="size-3" /> nodepad is on it
             </span>
           )}
         </motion.div>
@@ -123,7 +123,7 @@ function TurnToast() {
           exit={{ opacity: 0, y: 12 }}
           className="ink-btn absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-xl bg-panel py-1.5 pl-4 pr-1.5 text-sm font-medium text-ink"
         >
-          Nodepad made {sum.edits} {sum.edits === 1 ? "edit" : "edits"}
+          nodepad made {sum.edits} {sum.edits === 1 ? "edit" : "edits"}
           <button
             onClick={() => {
               send({ type: "undo_turn", turnId: shown });

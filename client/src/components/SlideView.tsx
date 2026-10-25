@@ -258,14 +258,14 @@ function AiCursor({ slide }: { slide: Slide }) {
   );
 }
 
-/** Nodepad's cursor: a pen nib with its name signed beside it; the nib's tip sits at the top-left corner. */
+/** nodepad's cursor: a pen nib with its name signed beside it; the nib's tip sits at the top-left corner. */
 export function MusePointer() {
   return (
     <span className="flex items-start whitespace-nowrap">
       <svg width="24" height="24" viewBox="0 0 24 24" className="rotate-90 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" aria-hidden>
         <path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" fill="white" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="hand mt-4 text-[20px] font-bold leading-none text-[#ea580c]">Nodepad</span>
+      <span className="hand mt-4 text-[20px] font-bold leading-none text-[#ea580c]">nodepad</span>
     </span>
   );
 }

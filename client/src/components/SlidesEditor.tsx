@@ -102,7 +102,7 @@ function EmptyDeck({ onPick }: { onPick: (t: string) => void }) {
   return (
     <div className="flex max-w-md flex-col items-center gap-4 text-center">
       <h2 className="font-display text-3xl font-bold tracking-tight">What are we presenting?</h2>
-      <p className="text-sm text-slate-500">Ask Nodepad for a deck and watch it build live, or add a slide from the rail.</p>
+      <p className="text-sm text-slate-500">Ask nodepad for a deck and watch it build live, or add a slide from the rail.</p>
       <div className="flex flex-wrap justify-center gap-2">
         {KINDS.slides.suggestions.map((s) => (
           <button key={s} onClick={() => onPick(s)} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm transition hover:border-violet-400 hover:text-violet-700">
