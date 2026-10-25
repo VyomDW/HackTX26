@@ -5,7 +5,8 @@ import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
 import { deleteRoom, getRoom, listRooms, type Room } from "./rooms/room";
 import { removeSaved } from "./rooms/store";
-import { transcribe } from "./integrations/voice";
+import { transcribe, transcribeTurns } from "./integrations/voice";
+import { listenerFor } from "./rooms/listen";
 
 const app = Fastify({ logger: true });
 
@@ -30,21 +31,38 @@ app.delete<{ Params: { id: string } }>("/docs/:id", async (req) => {
 
 app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 * 1024 }, (_req, body, done) => done(null, body));
 
-/** Push-to-talk: one WAV clip in, transcript out. The transcript takes the same path as a typed prompt. */
-app.post<{ Params: { roomId: string }; Querystring: { userId?: string } }>("/rooms/:roomId/voice", async (req, reply) => {
-  const userId = req.query.userId;
-  if (!userId || !Buffer.isBuffer(req.body) || req.body.length === 0) {
-    return reply.code(400).send({ error: "expected audio body and userId" });
-  }
-  try {
-    const text = await transcribe(req.body, req.headers["content-type"] ?? "audio/wav");
-    if (text) void getRoom(req.params.roomId).prompt(text, userId);
-    return { text };
-  } catch (err) {
-    req.log.error(err);
-    return reply.code(502).send({ error: "transcription failed" });
-  }
-});
+/**
+ * One WAV clip in, transcript out.
+ * Push-to-talk (default): the transcript takes the same path as a typed prompt.
+ * Listen mode (?mode=listen): an open-mic utterance, which only edits if it holds a real request.
+ * `source=call` is the meeting audio someone shares, which may hold several voices.
+ */
+app.post<{ Params: { roomId: string }; Querystring: { userId?: string; mode?: string; source?: string } }>(
+  "/rooms/:roomId/voice",
+  async (req, reply) => {
+    const { userId, mode, source } = req.query;
+    if (!userId || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return reply.code(400).send({ error: "expected audio body and userId" });
+    }
+    const mime = req.headers["content-type"] ?? "audio/wav";
+    try {
+      const room = getRoom(req.params.roomId);
+      if (mode === "listen") {
+        const fromCall = source === "call";
+        const lines = await transcribeTurns(req.body, mime, fromCall);
+        const name = [...room.members].find((m) => m.userId === userId)?.name ?? "Guest";
+        if (lines.length) listenerFor(room).hear(lines, fromCall ? `${userId}:call` : userId, fromCall ? "On the call" : name);
+        return { text: lines.join(" ") };
+      }
+      const text = await transcribe(req.body, mime);
+      if (text) void room.prompt(text, userId);
+      return { text };
+    } catch (err) {
+      req.log.error(err);
+      return reply.code(502).send({ error: "transcription failed" });
+    }
+  },
+);
 
 app.register(async (scope) => {
   scope.get("/ws", { websocket: true }, (socket) => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { ServerMessage, type ClientMessage, type DocKind } from "@hacktx/shared";
 import { useDeck } from "@/store/deck";
+import { useVoice } from "@/store/voice";
 
 const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:8787/ws`;
 
@@ -33,6 +34,7 @@ export function useRoomSocket(roomId: string, userId: string, name?: string, kin
         else if (msg.type === "presence") store.setUsers(msg.users);
         else if (msg.type === "ai_status") store.setAiStatus(msg.status);
         else if (msg.type === "error") store.setError(msg.message);
+        else if (msg.type === "caption") useVoice.getState().addCaption(msg.caption);
       };
       ws.onclose = () => {
         setConnected(false);
