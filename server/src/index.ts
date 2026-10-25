@@ -11,6 +11,7 @@ import { IMAGE_DIR } from "./integrations/image";
 import { listMedia, mediaEnabled, mediaFile, removeMedia, startMedia, type MediaKind, type MediaOptions } from "./integrations/media";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
+import { createMeshyTask, getMeshyTask, meshyAssetPath, refineMeshyTask, type MeshyQuality } from "./integrations/meshy";
 
 const app = Fastify({ logger: true });
 
@@ -19,6 +20,33 @@ await app.register(cors, { origin: env.clientOrigin });
 await app.register(websocket, { options: { maxPayload: 16 * 1024 * 1024 } });
 
 app.get("/health", async () => ({ ok: true }));
+
+app.post<{ Body: { prompt?: string; quality?: MeshyQuality } }>("/studio/meshy/tasks", async (req, reply) => {
+  const prompt = req.body?.prompt?.trim();
+  if (!prompt || prompt.length > 800) return reply.code(400).send({ error: "Enter a model description up to 800 characters." });
+  const quality = req.body?.quality === "medium" ? "medium" : "high";
+  try { return await createMeshyTask(prompt, quality); }
+  catch (error) { req.log.error(error); return reply.code(502).send({ error: error instanceof Error ? error.message : "Could not start 3D generation." }); }
+});
+
+app.post<{ Body: { previewTaskId?: string; prompt?: string } }>("/studio/meshy/refine", async (req, reply) => {
+  const previewTaskId = req.body?.previewTaskId?.trim();
+  const prompt = req.body?.prompt?.trim();
+  if (!previewTaskId || !prompt || prompt.length > 800) return reply.code(400).send({ error: "A completed preview and prompt are required." });
+  try { return await refineMeshyTask(previewTaskId, prompt); }
+  catch (error) { req.log.error(error); return reply.code(502).send({ error: error instanceof Error ? error.message : "Could not texture 3D model." }); }
+});
+
+app.get<{ Params: { id: string } }>("/studio/meshy/tasks/:id", async (req, reply) => {
+  try { return await getMeshyTask(req.params.id); }
+  catch (error) { req.log.error(error); return reply.code(502).send({ error: error instanceof Error ? error.message : "Could not check 3D generation." }); }
+});
+
+app.get<{ Params: { id: string } }>("/studio/meshy/assets/:id.glb", async (req, reply) => {
+  const file = meshyAssetPath(req.params.id);
+  if (!file) return reply.code(404).send();
+  return reply.header("cache-control", "public, max-age=31536000, immutable").type("model/gltf-binary").send(createReadStream(file));
+});
 
 /** AI-generated images, by the random file name generateImage chose (nothing else in the folder is reachable). */
 app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
@@ -157,4 +185,4 @@ app.register(async (scope) => {
   });
 });
 
-await app.listen({ port: env.port, host: "0.0.0.0" });
+await app.listen({ port: env.port, host: process.env.SERVER_HOST || "0.0.0.0" });

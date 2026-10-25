@@ -25,7 +25,7 @@ import { describeDocument, SYSTEM_PROMPTS } from "./prompts";
 const PROMPTS_PER_MINUTE = 20;
 const MAX_PARALLEL_IMAGES = 4;
 
-const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook", board: "board" };
+const NOUN: Record<DocKind, string> = { slides: "deck", doc: "document", sheet: "spreadsheet", notes: "notebook", board: "board", studio: "3D scene" };
 
 /** Turns SDK failures into something worth showing a user. */
 function errorMessage(err: unknown): string {
@@ -339,7 +339,7 @@ export class Room {
         console.error("[room " + this.id + "] image lookup/generation failed", err);
         const message = sourcedSlideImage
           ? "Couldn't find a downloadable, high-resolution image match. The placeholder remains on the slide."
-          : "Muse couldn't draw one of the images. Try asking again.";
+          : "nodepad couldn't draw one of the images. Try asking again.";
         this.broadcast({ type: "error", message });
       })
       .finally(() => this.drawing--);

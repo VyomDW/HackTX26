@@ -189,7 +189,7 @@ export function DocEditor({ doc }: { doc: TextDoc }) {
           <TitleInput title={doc.title} />
           {doc.blocks.length === 0 && (
             <button onClick={addAtEnd} className="mt-2 w-full text-left text-[15px] text-slate-400">
-              Start writing, or ask Muse to draft something…
+              Start writing, or ask nodepad to draft something…
             </button>
           )}
           {doc.blocks.map((block, i) => (

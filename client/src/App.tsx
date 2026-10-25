@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, LayoutGrid, Link2, Loader2, X } from "lucide-react";
 import { BoardTemplate, DocKind } from "@hacktx/shared";
 import { Activity, AiAvatar } from "@/components/Activity";
+import { Logo } from "@/components/Logo";
 import { BoardEditor } from "@/components/board/BoardEditor";
 import { DocEditor } from "@/components/DocEditor";
 import { Dock } from "@/components/Dock";
@@ -13,6 +14,7 @@ import { NotesEditor } from "@/components/NotesEditor";
 import { NameDialog, PresenceStack } from "@/components/Presence";
 import { Present, PrintDeck } from "@/components/Present";
 import { SheetEditor } from "@/components/SheetEditor";
+import { StudioEditor } from "@/components/StudioEditor";
 import { SlidesEditor } from "@/components/SlidesEditor";
 import { useIdentity } from "@/lib/identity";
 import { metaOf } from "@/lib/kinds";
@@ -77,10 +79,10 @@ function Workspace({
 
   useEffect(() => useEditor.setState({ send }), [send]);
   useEffect(() => {
-    if (loaded) document.title = `${doc.title} · Muse Office`;
+    if (loaded) document.title = `${doc.title} · nodepad`;
   }, [loaded, doc.title]);
 
-  // A new board takes the template picked on the home screen (before any first request, so Muse knows it).
+  // A new board takes the template picked on the home screen (before any first request, so nodepad knows it).
   const setTemplate = useRef(false);
   useEffect(() => {
     if (!loaded || !connected || setTemplate.current) return;
@@ -117,6 +119,8 @@ function Workspace({
               <DocEditor doc={doc} />
             ) : doc.kind === "sheet" ? (
               <SheetEditor sheet={doc} />
+            ) : doc.kind === "studio" ? (
+              <StudioEditor scene={doc} onPrompt={prompt} />
             ) : doc.kind === "board" ? (
               <BoardEditor board={doc} />
             ) : (
@@ -173,8 +177,8 @@ function Header({ roomId, userId, connected, onRename }: { roomId: string; userI
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 bg-page px-3 print:hidden sm:gap-3 lg:px-4">
       <a href={location.pathname} title="All files" className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-display text-[17px] font-bold hover:bg-slate-100">
-        <span className="grid size-7 place-items-center rounded-lg bg-[var(--ink)] text-[15px] text-[var(--page)] shadow-[2px_2px_0_var(--orb)]">M</span>
-        <span className="max-sm:hidden">Muse</span>
+        <Logo />
+        <span className="max-sm:hidden">nodepad</span>
         <LayoutGrid className="size-3.5 text-dim" />
       </a>
       <div className="flex min-w-0 items-center gap-2 border-l border-line pl-2 sm:pl-3">

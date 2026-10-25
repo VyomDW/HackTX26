@@ -3,7 +3,7 @@ import { ServerMessage, type ClientMessage, type DocKind } from "@hacktx/shared"
 import { useDeck } from "@/store/deck";
 import { useVoice } from "@/store/voice";
 
-const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:8787/ws`;
+const wsUrl = import.meta.env.VITE_WS_URL || `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 
 /** Joins the room and keeps the store in sync; reconnects with backoff if the server drops. */
 export function useRoomSocket(roomId: string, userId: string, name?: string, kind?: DocKind) {
