@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: nodepad
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -w server
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MODEL_API_KEY
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: MESHY_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
