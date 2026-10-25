@@ -26,7 +26,7 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
     return;
   }
 
-  const models = [...new Set([env.museModel, env.museFallbackModel].filter(Boolean))];
+  const models = [...new Set([env.museModel, ...env.museFallbackModels].filter(Boolean))];
   let stream: AsyncIterable<{ choices: { delta?: { content?: string | null } }[] }> | undefined;
   let lastModelError: unknown;
 
@@ -49,6 +49,7 @@ export async function* callMuse(messages: ChatMessage[], signal?: AbortSignal): 
         const modelUnavailable = err instanceof APIError && err.status === 404;
         if (!modelUnavailable || signal?.aborted) throw err;
         lastModelError = err;
+        console.warn(`Muse model unavailable: ${model} (attempt ${attempt + 1})`);
         if (attempt === 0) {
           await waitForRetry(350, signal);
         }
