@@ -22,6 +22,16 @@ const Up = () => (
   </svg>
 );
 
+// Declared at module level: a component created inside Landing would be a new type on every render, so React
+// would swap in fresh buttons that lack the click listeners mountLanding attached (e.g. once a saved sign-in loads).
+const GoNode = ({ small }: { small?: boolean }) => (
+  <button type="button" data-go className={small ? "go-node sm ink-btn" : "go-node ink-btn"}>
+    <span className="dot" />
+    go to node
+    {!small && <Arrow />}
+  </button>
+);
+
 /** First screen: the logo's one-stroke n in 3D, wired to every tool. "go to node" flies into it and opens the home screen. */
 export function Landing({ onEnter }: { onEnter: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -32,14 +42,6 @@ export function Landing({ onEnter }: { onEnter: () => void }) {
     document.title = "nodepad";
     return mountLanding(root.current!, { onEnter: () => enter.current() });
   }, []);
-
-  const GoNode = ({ small }: { small?: boolean }) => (
-    <button type="button" data-go className={small ? "go-node sm ink-btn" : "go-node ink-btn"}>
-      <span className="dot" />
-      go to node
-      {!small && <Arrow />}
-    </button>
-  );
 
   return (
     <div ref={root} className="lp">
