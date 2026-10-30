@@ -20,4 +20,12 @@ export const env = {
   replicateMusicModel: process.env.REPLICATE_MUSIC_MODEL || "google/lyria-2",
   replicateVideoModel: process.env.REPLICATE_VIDEO_MODEL || "bytedance/seedance-1-lite",
   meshyApiKey: process.env.MESHY_API_KEY ?? "",
+  /** Verification emails: SMTP (SMTP_URL, or SMTP_HOST and friends) or Resend; see integrations/email.ts. */
+  smtpUrl: process.env.SMTP_URL ?? "",
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  emailFrom: process.env.EMAIL_FROM || process.env.SMTP_USER || "nodepad <onboarding@resend.dev>",
 };

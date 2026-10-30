@@ -52,8 +52,32 @@ async function accountCall(path: string, body: unknown, method = "POST") {
   return data;
 }
 
-export async function signIn(mode: "login" | "signup", username: string, password: string, name?: string) {
-  const { account, token } = await accountCall(`/auth/${mode}`, { username, password, name: name || undefined });
+export async function signIn(username: string, password: string) {
+  const { account, token } = await accountCall("/auth/login", { username, password });
+  setSession(account!, token);
+}
+
+/** Step one of sign-up: nothing is signed in yet, a 6-digit code is on its way to the email. */
+export async function signUp(details: { username: string; email: string; password: string; name?: string }) {
+  const res = await api("/auth/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(details) });
+  const data = (await res.json().catch(() => ({}))) as { pending?: { email: string }; error?: string };
+  if (!res.ok || !data.pending) throw new Error(data.error || "Something went wrong. Try again.");
+  return data.pending.email;
+}
+
+/** Step two: the code from the email creates the account and signs it in. */
+export async function verifyEmail(email: string, code: string) {
+  const { account, token } = await accountCall("/auth/verify", { email, code });
+  setSession(account!, token);
+}
+
+export async function resendCode(email: string) {
+  const res = await api("/auth/resend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
+}
+
+function setSession(account: Account, token?: string) {
   writeToken(token);
   useAuth.setState({ token, account, status: "ready" });
 }
@@ -76,12 +100,15 @@ export async function signOut() {
   forget();
 }
 
-// Check a remembered session once at startup.
+// Check a remembered session once at startup; the server answers with a renewed token, so the 30-day
+// expiry keeps moving while this device is in use.
 if (useAuth.getState().token)
   void api("/auth/me")
     .then(async (res) => {
-      if (res.ok) useAuth.setState({ account: ((await res.json()) as { account: Account }).account, status: "ready" });
-      else forget();
+      if (!res.ok) return forget();
+      const { account, token } = (await res.json()) as { account: Account; token?: string };
+      if (token) writeToken(token);
+      useAuth.setState(token ? { account, token, status: "ready" } : { account, status: "ready" });
     })
     // offline or server down: keep the token and let the screens retry
     .catch(() => useAuth.setState({ status: "ready" }));

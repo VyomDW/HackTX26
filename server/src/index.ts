@@ -5,7 +5,7 @@ import websocket from "@fastify/websocket";
 import { ClientMessage } from "@hacktx/shared";
 import { env } from "./env";
 import { diagnoseMuse } from "./integrations/muse";
-import { accountOf, Credentials, rename, requireAccount, signIn, signOut, signUp, tokenOf } from "./auth";
+import { accountOf, Credentials, Registration, rename, renewSession, requireAccount, resendCode, signIn, signOut, signUp, tokenOf, Verification, verify } from "./auth";
 import { admit, deleteRoom, findRoom, getRoom, listRooms, revokeAccess, type Room } from "./rooms/room";
 import { removeSaved } from "./rooms/store";
 import { transcribe, transcribeTurns } from "./integrations/voice";
@@ -36,30 +36,51 @@ app.get("/health", async () => ({ ok: true }));
 /** Can this server reach the AI? Key fingerprint, models visible from here, and a tiny test call per model. */
 app.get("/health/ai", async () => diagnoseMuse());
 
-/** Accounts: sign up, sign in, who am I, rename, sign out. Responses carry the session token the browser keeps. */
+/**
+ * Accounts: sign up (emails a code), verify the code, sign in, who am I, rename, sign out. Responses that sign
+ * someone in carry the session token the browser keeps.
+ */
+const firstIssue = (error: { issues: { message: string }[] }) => error.issues[0]?.message ?? "Check your details.";
+
 app.post<{ Body: unknown }>("/auth/signup", async (req, reply) => {
-  const input = Credentials.safeParse(req.body);
-  if (!input.success) return reply.code(400).send({ error: input.error.issues[0]?.message ?? "Check your details." });
+  const input = Registration.safeParse(req.body);
+  if (!input.success) return reply.code(400).send({ error: firstIssue(input.error) });
   const result = await signUp(input.data);
   if ("error" in result) return reply.code(409).send({ error: result.error });
-  return { account: result.account, token: result.token };
+  return result;
+});
+
+app.post<{ Body: unknown }>("/auth/verify", async (req, reply) => {
+  const input = Verification.safeParse(req.body);
+  if (!input.success) return reply.code(400).send({ error: firstIssue(input.error) });
+  const result = await verify(input.data);
+  if ("error" in result) return reply.code(400).send({ error: result.error });
+  return result;
+});
+
+app.post<{ Body: { email?: string } }>("/auth/resend", async (req, reply) => {
+  const email = req.body?.email?.trim().toLowerCase();
+  if (!email) return reply.code(400).send({ error: "Enter your email." });
+  const result = await resendCode(email);
+  if ("error" in result) return reply.code(429).send({ error: result.error });
+  return result;
 });
 
 app.post<{ Body: unknown }>("/auth/login", async (req, reply) => {
   const input = Credentials.safeParse(req.body);
-  if (!input.success) return reply.code(401).send({ error: "Wrong username or password." });
+  if (!input.success) return reply.code(401).send({ error: "Wrong username, email or password." });
   const result = await signIn(input.data);
   if ("error" in result) return reply.code(401).send({ error: result.error });
   return result;
 });
 
 app.get("/auth/me", async (req, reply) => {
-  const account = requireAccount(req, reply);
-  return account && { account };
+  const account = await requireAccount(req, reply);
+  return account && { account, token: renewSession(account) };
 });
 
 app.patch<{ Body: { name?: string } }>("/auth/me", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   if (!account) return;
   const name = req.body?.name?.trim().slice(0, 32);
   if (!name) return reply.code(400).send({ error: "Enter a name." });
@@ -73,7 +94,7 @@ app.post("/auth/logout", async (req) => {
 });
 
 app.post<{ Body: { prompt?: string; quality?: MeshyQuality } }>("/studio/meshy/tasks", async (req, reply) => {
-  if (!requireAccount(req, reply)) return;
+  if (!await requireAccount(req, reply)) return;
   const prompt = req.body?.prompt?.trim();
   if (!prompt || prompt.length > 800) return reply.code(400).send({ error: "Enter a model description up to 800 characters." });
   const quality = req.body?.quality === "medium" ? "medium" : "high";
@@ -82,7 +103,7 @@ app.post<{ Body: { prompt?: string; quality?: MeshyQuality } }>("/studio/meshy/t
 });
 
 app.post<{ Body: { previewTaskId?: string; prompt?: string } }>("/studio/meshy/refine", async (req, reply) => {
-  if (!requireAccount(req, reply)) return;
+  if (!await requireAccount(req, reply)) return;
   const previewTaskId = req.body?.previewTaskId?.trim();
   const prompt = req.body?.prompt?.trim();
   if (!previewTaskId || !prompt || prompt.length > 800) return reply.code(400).send({ error: "A completed preview and prompt are required." });
@@ -113,12 +134,12 @@ app.get<{ Params: { file: string } }>("/images/:file", async (req, reply) => {
 
 /** Media studio: every music and video generation, newest first, and whether a Replicate key is set. */
 app.get("/media", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   return account && { enabled: mediaEnabled(), jobs: await listMedia(account.id) };
 });
 
 app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRatio?: string } }>("/media", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   if (!account) return;
   const { kind, prompt, duration, aspectRatio } = req.body ?? {};
   if (!mediaEnabled()) return reply.code(503).send({ error: "Add REPLICATE_API_TOKEN to server/.env to generate media." });
@@ -133,7 +154,7 @@ app.post<{ Body: { kind?: string; prompt?: string; duration?: number; aspectRati
 });
 
 app.delete<{ Params: { id: string } }>("/media/:id", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   if (!account) return;
   return (await removeMedia(req.params.id, account.id)) ? { ok: true } : reply.code(404).send({ error: "Nothing to remove (it may still be generating)." });
 });
@@ -151,7 +172,7 @@ app.get<{ Params: { id: string; name: string }; Querystring: { download?: string
 
 /** The signed-in account's files for the home screen (theirs and ones shared with them), most recently edited first. */
 app.get("/docs", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   if (!account) return;
   return listRooms()
     .filter((r) => r.access.has(account.id))
@@ -169,7 +190,7 @@ app.get("/docs", async (req, reply) => {
 
 /** The owner deletes the file for everyone; anyone else just removes it from their own list. */
 app.delete<{ Params: { id: string } }>("/docs/:id", async (req, reply) => {
-  const account = requireAccount(req, reply);
+  const account = await requireAccount(req, reply);
   if (!account) return;
   const room = findRoom(req.params.id);
   if (!room || !room.access.has(account.id)) return reply.code(404).send({ error: "No such file." });
@@ -193,7 +214,7 @@ app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: 32 * 1024 *
 app.post<{ Params: { roomId: string }; Querystring: { userId?: string; mode?: string; source?: string } }>(
   "/rooms/:roomId/voice",
   async (req, reply) => {
-    const account = requireAccount(req, reply);
+    const account = await requireAccount(req, reply);
     if (!account) return;
     const userId = account.id;
     const { mode, source } = req.query;
@@ -226,7 +247,13 @@ app.register(async (scope) => {
     let room: Room | undefined;
     let member: Parameters<Room["join"]>[0] | undefined;
 
+    // One message at a time, in order, so anything sent right after a join waits for its account check.
+    let queue = Promise.resolve();
     socket.on("message", (raw) => {
+      queue = queue.then(() => handle(raw)).catch((err) => scope.log.error(err));
+    });
+
+    async function handle(raw: Buffer | ArrayBuffer | Buffer[]) {
       let data: unknown;
       try {
         data = JSON.parse(raw.toString());
@@ -241,7 +268,8 @@ app.register(async (scope) => {
       const msg = parsed.data;
       if (msg.type === "join") {
         // Only the owner, or someone holding the file's Invite link, gets in. It then shows in their files.
-        const account = accountOf(msg.token);
+        const account = await accountOf(msg.token);
+        if (socket.readyState !== socket.OPEN) return;
         if (!account) return socket.close(4401, "sign in");
         const existing = findRoom(msg.roomId);
         if (existing && !admit(existing, account.id, msg.invite)) return socket.close(4403, "no access");
@@ -260,7 +288,7 @@ app.register(async (scope) => {
       if (msg.type === "ops") room.userOps(msg.ops, member);
       if (msg.type === "undo_mine") room.undoMine(member.userId);
       if (msg.type === "redo_mine") room.redoMine(member.userId);
-    });
+    }
 
     socket.on("close", () => {
       if (room && member) room.leave(member);

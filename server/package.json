@@ -17,11 +17,13 @@
     "@hacktx/shared": "*",
     "fastify": "^5.12.7",
     "ffmpeg-static": "^5.3.0",
+    "nodemailer": "^10.3.1",
     "openai": "^7.43.0",
     "ws": "^8.22.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "@types/ws": "^8.18.2",
     "tsx": "^4.23.15"
   }
